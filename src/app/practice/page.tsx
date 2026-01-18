@@ -53,6 +53,9 @@ const categoryColors: Record<string, { bg: string; text: string; border: string;
   'Frontend/LLD': { bg: 'bg-pink-50', text: 'text-pink-700', border: 'border-pink-200', icon: '🎨' },
 }
 
+// Base path for GitHub Pages deployment
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH || ''
+
 export default function PracticePage() {
   const [data, setData] = useState<ProblemsData | null>(null)
   const [solutionManifest, setSolutionManifest] = useState<SolutionManifest | null>(null)
@@ -62,9 +65,6 @@ export default function PracticePage() {
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all')
   const [selectedSolutionFilter, setSelectedSolutionFilter] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
-
-  // Base path for GitHub Pages deployment
-  const basePath = process.env.NEXT_PUBLIC_BASE_PATH || ''
 
   useEffect(() => {
     Promise.all([
