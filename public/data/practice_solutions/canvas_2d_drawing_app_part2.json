@@ -1,0 +1,989 @@
+{
+  "problem_title": "2D Canvas / Drawing Application - Part 2: Move Shape",
+  "part_number": 2,
+  "builds_on": "Part 1",
+  "difficulty": "medium",
+  "problem_understanding": {
+    "what_changes": "Part 2 adds the ability to **relocate existing shapes** on the canvas. Unlike Part 1's static shapes, we now need efficient lookup by ID and mutable position coordinates. The critical insight is that **z-order must be preserved** when moving - a shape doesn't come to the front just because it was moved.",
+    "new_requirements": [
+      "moveShape(shapeId, newX, newY) method that updates position",
+      "O(1) lookup of shapes by ID",
+      "For rectangles: (newX, newY) = new top-left corner",
+      "For circles: (newX, newY) = new center",
+      "Z-order remains unchanged after move"
+    ],
+    "new_constraints": [
+      "Moving a shape should not affect z-ordering",
+      "moveShape should be O(1) time complexity",
+      "Position update must be in-place (same shape object)"
+    ],
+    "key_insight": "The 'AHA!' moment is realizing we need **two data structures**: a List for z-order (preserved from Part 1) AND a HashMap for O(1) ID lookup. The shape positions must be mutable fields updated in-place - we should NOT delete and recreate shapes."
+  },
+  "requirements_coverage": {
+    "checklist": [
+      {
+        "requirement": "Move shape by ID to new position",
+        "how_met": "HashMap provides O(1) lookup, then update x,y fields directly",
+        "gotchas": [
+          "Don't recreate the shape - modify in place",
+          "Don't remove/re-add to list"
+        ]
+      },
+      {
+        "requirement": "Preserve z-order after move",
+        "how_met": "Shape stays in same position in the List - only coordinates change",
+        "gotchas": [
+          "Moving doesn't mean 'bring to front' - list order is unchanged"
+        ]
+      },
+      {
+        "requirement": "Different position semantics for rect vs circle",
+        "how_met": "Both use (x, y) internally - semantics handled by caller",
+        "gotchas": [
+          "Don't confuse top-left vs center in internal representation"
+        ]
+      }
+    ],
+    "complexity_targets": [
+      {
+        "operation": "moveShape",
+        "target": "O(1)",
+        "achieved": "O(1)",
+        "why": "HashMap lookup + direct field update"
+      }
+    ],
+    "non_goals": [
+      "Undo/redo functionality",
+      "Animation/interpolation",
+      "Bringing shape to front on move"
+    ]
+  },
+  "assumptions": [
+    "Moving a non-existent shape ID should silently do nothing (no exception)",
+    "Coordinates can be negative (shapes can move off-canvas)",
+    "Position values fit in standard integer range",
+    "No concurrent access to canvas (single-threaded)"
+  ],
+  "tradeoffs": [
+    {
+      "decision": "HashMap vs Linear Search for ID lookup",
+      "chosen": "HashMap",
+      "why": "O(1) lookup vs O(n) - essential for frequent move operations",
+      "alternative": "Linear search through list",
+      "when_to_switch": "Never - HashMap has no downside here"
+    },
+    {
+      "decision": "Mutable vs Immutable shapes",
+      "chosen": "Mutable position fields",
+      "why": "In-place update preserves list reference and z-order automatically",
+      "alternative": "Immutable shapes with list replacement",
+      "when_to_switch": "If implementing undo/redo with snapshotting"
+    }
+  ],
+  "extensibility_notes": {
+    "what_to_keep_stable": [
+      "Shape base class interface",
+      "createRectangle/createCircle signatures",
+      "getShapeAt behavior"
+    ],
+    "what_to_change": [
+      "Added shape_map HashMap for O(1) lookup",
+      "Added move_to() method to Shape class"
+    ],
+    "interfaces_and_boundaries": "Shape class has a move_to(x, y) method that subclasses inherit - allows uniform movement logic regardless of shape type",
+    "invariants": [
+      "shapes list order = z-order (newer shapes at end)",
+      "shape_map[id] always points to same object as in shapes list",
+      "Shape.id is immutable after creation"
+    ]
+  },
+  "visual_explanation": {
+    "before_after": "```\\nBEFORE moveShape(\\\"rect_1\\\", 80, 80):\\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\\n\u2502 shapes = [rect_1, circle_1]\u2502  <- z-order: circle on top\\n\u2502                            \u2502\\n\u2502    \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510             \u2502\\n\u2502    \u2502  rect_1 \u2502 (10,10)     \u2502\\n\u2502    \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518             \u2502\\n\u2502         \u25cb circle_1 (50,50) \u2502\\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\\n\\nAFTER:\\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\\n\u2502 shapes = [rect_1, circle_1]\u2502  <- SAME order!\\n\u2502                            \u2502\\n\u2502         \u25cb circle_1 (50,50) \u2502\\n\u2502                            \u2502\\n\u2502              \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510   \u2502\\n\u2502              \u2502  rect_1 \u2502   \u2502\\n\u2502              \u2502 (80,80) \u2502   \u2502\\n\u2502              \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518   \u2502\\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\\n```",
+    "algorithm_flow": "```\\nmoveShape(shapeId, newX, newY):\\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\\n\u2502 1. Look up in HashMap    \u2502  O(1)\\n\u2502    shape = map[shapeId]  \u2502\\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\\n             \u2502\\n             \u25bc\\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\\n\u2502 2. Update coordinates    \u2502  O(1)\\n\u2502    shape.x = newX        \u2502\\n\u2502    shape.y = newY        \u2502\\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\\n             \u2502\\n             \u25bc\\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\\n\u2502 3. Done! List unchanged  \u2502\\n\u2502    Z-order preserved     \u2502\\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\\n```"
+  },
+  "approaches": [
+    {
+      "name": "Naive Extension - Linear Search",
+      "description": "Search through the shapes list to find the shape by ID, then update position",
+      "time_complexity": "O(n) for moveShape",
+      "space_complexity": "O(1) additional",
+      "why_not_optimal": "Violates O(1) requirement. With many shapes and frequent moves, this becomes a bottleneck."
+    },
+    {
+      "name": "Naive Extension - Delete and Re-add",
+      "description": "Remove shape from list, create new shape at new position, add to end",
+      "time_complexity": "O(n) for removal",
+      "space_complexity": "O(1)",
+      "why_not_optimal": "Changes z-order! Re-adding puts shape on top, which violates the requirement."
+    },
+    {
+      "name": "Optimal Approach - HashMap + In-Place Update",
+      "description": "Maintain a HashMap<ID, Shape> alongside the list. Lookup by ID in O(1), update position fields directly without touching the list.",
+      "time_complexity": "O(1) for moveShape",
+      "space_complexity": "O(n) for HashMap",
+      "key_insight": "The shape object in the HashMap is the SAME object as in the list. Updating it updates both data structures simultaneously."
+    }
+  ],
+  "optimal_solution": {
+    "explanation_md": "## Optimal Solution: HashMap + In-Place Update\\n\\nThe key insight is using **two data structures that share object references**:\\n\\n1. **List<Shape>** - maintains z-order (from Part 1)\\n2. **HashMap<String, Shape>** - enables O(1) lookup by ID (new in Part 2)\\n\\n### Why This Works\\n\\nWhen we add a shape:\\n```\\nshape = new Rectangle(...)\\nshapes.add(shape)         // Add to list\\nshapeMap.put(id, shape)   // Add to map - SAME object\\n```\\n\\nBoth data structures point to the **same object in memory**. When we update `shape.x` and `shape.y`, both the list and map automatically see the change.\\n\\n### The Elegance\\n\\n- **No list modification** = z-order preserved\\n- **No object recreation** = O(1) operation\\n- **Single source of truth** = consistency guaranteed",
+    "data_structures": [
+      {
+        "structure": "List<Shape>",
+        "purpose": "Maintains z-order - shapes added later are at higher indices"
+      },
+      {
+        "structure": "HashMap<String, Shape>",
+        "purpose": "O(1) lookup by shape ID for move operations"
+      },
+      {
+        "structure": "Shape.x/y as mutable fields",
+        "purpose": "Enable in-place position updates"
+      }
+    ],
+    "algorithm_steps": [
+      "Step 1: On shape creation, add to both List (append) and HashMap (put)",
+      "Step 2: For moveShape, lookup shape in HashMap - O(1)",
+      "Step 3: If found, update shape.x and shape.y directly",
+      "Step 4: List order unchanged, z-order automatically preserved",
+      "Step 5: getShapeAt works unchanged - iterates list, shape coordinates are updated"
+    ]
+  },
+  "solution_python_lines": [
+    "from typing import Optional, Dict, List",
+    "from abc import ABC, abstractmethod",
+    "",
+    "",
+    "class Shape(ABC):",
+    "    \"\"\"Abstract base class for all shapes on the canvas.\"\"\"",
+    "    ",
+    "    def __init__(self, shape_id: str, x: int, y: int):",
+    "        self._id = shape_id",
+    "        self._x = x",
+    "        self._y = y",
+    "    ",
+    "    @property",
+    "    def id(self) -> str:",
+    "        \"\"\"Get the unique identifier for this shape.\"\"\"",
+    "        return self._id",
+    "    ",
+    "    @property",
+    "    def x(self) -> int:",
+    "        \"\"\"Get the x coordinate (top-left for rect, center for circle).\"\"\"",
+    "        return self._x",
+    "    ",
+    "    @property",
+    "    def y(self) -> int:",
+    "        \"\"\"Get the y coordinate.\"\"\"",
+    "        return self._y",
+    "    ",
+    "    def move_to(self, new_x: int, new_y: int) -> None:",
+    "        \"\"\"Move shape to new position (in-place update).\"\"\"",
+    "        self._x = new_x",
+    "        self._y = new_y",
+    "    ",
+    "    @abstractmethod",
+    "    def contains(self, px: int, py: int) -> bool:",
+    "        \"\"\"Check if point (px, py) is inside this shape.\"\"\"",
+    "        pass",
+    "",
+    "",
+    "class Rectangle(Shape):",
+    "    \"\"\"A rectangle defined by top-left corner and dimensions.\"\"\"",
+    "    ",
+    "    def __init__(self, shape_id: str, x: int, y: int, width: int, height: int):",
+    "        super().__init__(shape_id, x, y)",
+    "        self._width = width",
+    "        self._height = height",
+    "    ",
+    "    @property",
+    "    def width(self) -> int:",
+    "        return self._width",
+    "    ",
+    "    @property",
+    "    def height(self) -> int:",
+    "        return self._height",
+    "    ",
+    "    def contains(self, px: int, py: int) -> bool:",
+    "        \"\"\"Check if point is inside rectangle.",
+    "        ",
+    "        Uses inclusive top-left, exclusive bottom-right boundaries.",
+    "        \"\"\"",
+    "        return (self._x <= px < self._x + self._width and",
+    "                self._y <= py < self._y + self._height)",
+    "    ",
+    "    def __repr__(self) -> str:",
+    "        return f\"Rectangle({self._id}, x={self._x}, y={self._y}, w={self._width}, h={self._height})\"",
+    "",
+    "",
+    "class Circle(Shape):",
+    "    \"\"\"A circle defined by center point and radius.\"\"\"",
+    "    ",
+    "    def __init__(self, shape_id: str, center_x: int, center_y: int, radius: int):",
+    "        super().__init__(shape_id, center_x, center_y)",
+    "        self._radius = radius",
+    "    ",
+    "    @property",
+    "    def radius(self) -> int:",
+    "        return self._radius",
+    "    ",
+    "    def contains(self, px: int, py: int) -> bool:",
+    "        \"\"\"Check if point is inside circle using distance formula.",
+    "        ",
+    "        Point is inside if distance from center <= radius.",
+    "        Using squared distance to avoid sqrt for performance.",
+    "        \"\"\"",
+    "        dx = px - self._x",
+    "        dy = py - self._y",
+    "        return dx * dx + dy * dy <= self._radius * self._radius",
+    "    ",
+    "    def __repr__(self) -> str:",
+    "        return f\"Circle({self._id}, cx={self._x}, cy={self._y}, r={self._radius})\"",
+    "",
+    "",
+    "class Canvas:",
+    "    \"\"\"A 2D canvas for creating and managing shapes.",
+    "    ",
+    "    Supports rectangles and circles with z-ordering (later shapes on top).",
+    "    Part 2 adds: moveShape for relocating shapes while preserving z-order.",
+    "    \"\"\"",
+    "    ",
+    "    def __init__(self):",
+    "        # List maintains z-order: index 0 = bottom, last = top",
+    "        self._shapes: List[Shape] = []",
+    "        # HashMap for O(1) lookup by ID (NEW in Part 2)",
+    "        self._shape_map: Dict[str, Shape] = {}",
+    "        self._rect_counter: int = 0",
+    "        self._circle_counter: int = 0",
+    "    ",
+    "    def create_rectangle(self, x: int, y: int, width: int, height: int) -> str:",
+    "        \"\"\"Create a rectangle and return its ID.",
+    "        ",
+    "        Args:",
+    "            x: Top-left corner X coordinate",
+    "            y: Top-left corner Y coordinate",
+    "            width: Rectangle width",
+    "            height: Rectangle height",
+    "        ",
+    "        Returns:",
+    "            Shape ID in format 'rect_N'",
+    "        \"\"\"",
+    "        self._rect_counter += 1",
+    "        shape_id = f\"rect_{self._rect_counter}\"",
+    "        rect = Rectangle(shape_id, x, y, width, height)",
+    "        self._shapes.append(rect)",
+    "        self._shape_map[shape_id] = rect  # Add to map for O(1) lookup",
+    "        return shape_id",
+    "    ",
+    "    def create_circle(self, center_x: int, center_y: int, radius: int) -> str:",
+    "        \"\"\"Create a circle and return its ID.",
+    "        ",
+    "        Args:",
+    "            center_x: Center X coordinate",
+    "            center_y: Center Y coordinate",
+    "            radius: Circle radius",
+    "        ",
+    "        Returns:",
+    "            Shape ID in format 'circle_N'",
+    "        \"\"\"",
+    "        self._circle_counter += 1",
+    "        shape_id = f\"circle_{self._circle_counter}\"",
+    "        circle = Circle(shape_id, center_x, center_y, radius)",
+    "        self._shapes.append(circle)",
+    "        self._shape_map[shape_id] = circle  # Add to map for O(1) lookup",
+    "        return shape_id",
+    "    ",
+    "    def get_shape_at(self, x: int, y: int) -> Optional[str]:",
+    "        \"\"\"Find the topmost shape at the given coordinates.",
+    "        ",
+    "        Args:",
+    "            x: Query X coordinate",
+    "            y: Query Y coordinate",
+    "        ",
+    "        Returns:",
+    "            Shape ID of topmost shape containing the point, or None",
+    "        \"\"\"",
+    "        # Iterate from back (newest/top) to front (oldest/bottom)",
+    "        for shape in reversed(self._shapes):",
+    "            if shape.contains(x, y):",
+    "                return shape.id",
+    "        return None",
+    "    ",
+    "    def move_shape(self, shape_id: str, new_x: int, new_y: int) -> None:",
+    "        \"\"\"Move a shape to a new position.",
+    "        ",
+    "        For rectangles: (new_x, new_y) becomes the new top-left corner.",
+    "        For circles: (new_x, new_y) becomes the new center.",
+    "        ",
+    "        IMPORTANT: Z-order is preserved - moving does NOT bring shape to front.",
+    "        ",
+    "        Args:",
+    "            shape_id: ID of the shape to move",
+    "            new_x: New X position",
+    "            new_y: New Y position",
+    "        \"\"\"",
+    "        # O(1) lookup using HashMap",
+    "        if shape_id in self._shape_map:",
+    "            shape = self._shape_map[shape_id]",
+    "            # In-place update - list order unchanged, z-order preserved",
+    "            shape.move_to(new_x, new_y)",
+    "",
+    "",
+    "def main():",
+    "    \"\"\"Demo showcasing Part 2 functionality.\"\"\"",
+    "    print(\"=\" * 60)",
+    "    print(\"Part 2: Move Shape - Demo\")",
+    "    print(\"=\" * 60)",
+    "    ",
+    "    # Example 1: Moving a rectangle",
+    "    print(\"\\n--- Example 1: Moving a rectangle ---\")",
+    "    canvas = Canvas()",
+    "    ",
+    "    r1 = canvas.create_rectangle(0, 0, 50, 50)",
+    "    print(f\"createRectangle(0, 0, 50, 50) -> {r1}\")",
+    "    ",
+    "    r2 = canvas.create_rectangle(25, 25, 50, 50)",
+    "    print(f\"createRectangle(25, 25, 50, 50) -> {r2}\")",
+    "    ",
+    "    result = canvas.get_shape_at(30, 30)",
+    "    print(f\"getShapeAt(30, 30) -> {result}  (rect_2 is on top)\")",
+    "    ",
+    "    print(\"\\nmoveShape('rect_1', 100, 100)  # Move rect_1 away\")",
+    "    canvas.move_shape(\"rect_1\", 100, 100)",
+    "    ",
+    "    result = canvas.get_shape_at(30, 30)",
+    "    print(f\"getShapeAt(30, 30) -> {result}  (only rect_2 contains this point now)\")",
+    "    ",
+    "    # Example 2: Moving circle to create overlap",
+    "    print(\"\\n--- Example 2: Moving circle to create overlap ---\")",
+    "    canvas2 = Canvas()",
+    "    ",
+    "    r1 = canvas2.create_rectangle(0, 0, 40, 40)",
+    "    print(f\"createRectangle(0, 0, 40, 40) -> {r1}\")",
+    "    ",
+    "    c1 = canvas2.create_circle(100, 100, 20)",
+    "    print(f\"createCircle(100, 100, 20) -> {c1}\")",
+    "    ",
+    "    print(\"\\nmoveShape('circle_1', 20, 20)  # Move circle to overlap rect\")",
+    "    canvas2.move_shape(\"circle_1\", 20, 20)",
+    "    ",
+    "    result = canvas2.get_shape_at(20, 20)",
+    "    print(f\"getShapeAt(20, 20) -> {result}  (circle is on top - created after rect)\")",
+    "    ",
+    "    # Example 3: Z-order preservation demo",
+    "    print(\"\\n--- Example 3: Z-order preservation ---\")",
+    "    canvas3 = Canvas()",
+    "    canvas3.create_rectangle(0, 0, 100, 100)   # rect_1 at bottom",
+    "    canvas3.create_rectangle(50, 50, 100, 100) # rect_2 on top",
+    "    ",
+    "    print(\"Initial: rect_1 at (0,0), rect_2 at (50,50)\")",
+    "    print(f\"getShapeAt(75, 75) -> {canvas3.get_shape_at(75, 75)}  (overlap, rect_2 wins)\")",
+    "    ",
+    "    print(\"\\nmoveShape('rect_1', 50, 50)  # Move rect_1 to same position as rect_2\")",
+    "    canvas3.move_shape(\"rect_1\", 50, 50)",
+    "    ",
+    "    print(f\"getShapeAt(75, 75) -> {canvas3.get_shape_at(75, 75)}  (rect_2 STILL on top!)\")",
+    "    print(\"^ Z-order preserved: rect_2 was created after rect_1\")",
+    "    ",
+    "    print(\"\\n\" + \"=\" * 60)",
+    "    print(\"All Part 2 examples completed!\")",
+    "",
+    "",
+    "if __name__ == \"__main__\":",
+    "    main()"
+  ],
+  "solution_java_lines": [
+    "import java.util.*;",
+    "",
+    "/**",
+    " * Abstract base class for all shapes on the canvas.",
+    " */",
+    "abstract class Shape {",
+    "    protected String id;",
+    "    protected int x;",
+    "    protected int y;",
+    "    ",
+    "    public Shape(String id, int x, int y) {",
+    "        this.id = id;",
+    "        this.x = x;",
+    "        this.y = y;",
+    "    }",
+    "    ",
+    "    public String getId() {",
+    "        return id;",
+    "    }",
+    "    ",
+    "    public int getX() {",
+    "        return x;",
+    "    }",
+    "    ",
+    "    public int getY() {",
+    "        return y;",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Move shape to new position (in-place update).",
+    "     * Z-order is preserved since we don't modify the list.",
+    "     */",
+    "    public void moveTo(int newX, int newY) {",
+    "        this.x = newX;",
+    "        this.y = newY;",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Check if point (px, py) is inside this shape.",
+    "     */",
+    "    public abstract boolean contains(int px, int py);",
+    "}",
+    "",
+    "/**",
+    " * A rectangle defined by top-left corner and dimensions.",
+    " */",
+    "class Rectangle extends Shape {",
+    "    private int width;",
+    "    private int height;",
+    "    ",
+    "    public Rectangle(String id, int x, int y, int width, int height) {",
+    "        super(id, x, y);",
+    "        this.width = width;",
+    "        this.height = height;",
+    "    }",
+    "    ",
+    "    public int getWidth() {",
+    "        return width;",
+    "    }",
+    "    ",
+    "    public int getHeight() {",
+    "        return height;",
+    "    }",
+    "    ",
+    "    @Override",
+    "    public boolean contains(int px, int py) {",
+    "        // Inclusive top-left, exclusive bottom-right",
+    "        return x <= px && px < x + width && y <= py && py < y + height;",
+    "    }",
+    "    ",
+    "    @Override",
+    "    public String toString() {",
+    "        return String.format(\"Rectangle(%s, x=%d, y=%d, w=%d, h=%d)\", id, x, y, width, height);",
+    "    }",
+    "}",
+    "",
+    "/**",
+    " * A circle defined by center point and radius.",
+    " */",
+    "class Circle extends Shape {",
+    "    private int radius;",
+    "    ",
+    "    public Circle(String id, int centerX, int centerY, int radius) {",
+    "        super(id, centerX, centerY);",
+    "        this.radius = radius;",
+    "    }",
+    "    ",
+    "    public int getRadius() {",
+    "        return radius;",
+    "    }",
+    "    ",
+    "    @Override",
+    "    public boolean contains(int px, int py) {",
+    "        // Use squared distance to avoid sqrt",
+    "        int dx = px - x;",
+    "        int dy = py - y;",
+    "        return dx * dx + dy * dy <= radius * radius;",
+    "    }",
+    "    ",
+    "    @Override",
+    "    public String toString() {",
+    "        return String.format(\"Circle(%s, cx=%d, cy=%d, r=%d)\", id, x, y, radius);",
+    "    }",
+    "}",
+    "",
+    "/**",
+    " * A 2D canvas for creating and managing shapes.",
+    " * ",
+    " * Supports rectangles and circles with z-ordering (later shapes on top).",
+    " * Part 2 adds: moveShape for relocating shapes while preserving z-order.",
+    " */",
+    "public class Canvas {",
+    "    // List maintains z-order: index 0 = bottom, last = top",
+    "    private List<Shape> shapes;",
+    "    // HashMap for O(1) lookup by ID (NEW in Part 2)",
+    "    private Map<String, Shape> shapeMap;",
+    "    private int rectCounter;",
+    "    private int circleCounter;",
+    "    ",
+    "    public Canvas() {",
+    "        shapes = new ArrayList<>();",
+    "        shapeMap = new HashMap<>();",
+    "        rectCounter = 0;",
+    "        circleCounter = 0;",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Create a rectangle and return its ID.",
+    "     * ",
+    "     * @param x Top-left corner X coordinate",
+    "     * @param y Top-left corner Y coordinate",
+    "     * @param width Rectangle width",
+    "     * @param height Rectangle height",
+    "     * @return Shape ID in format \"rect_N\"",
+    "     */",
+    "    public String createRectangle(int x, int y, int width, int height) {",
+    "        rectCounter++;",
+    "        String shapeId = \"rect_\" + rectCounter;",
+    "        Rectangle rect = new Rectangle(shapeId, x, y, width, height);",
+    "        shapes.add(rect);",
+    "        shapeMap.put(shapeId, rect);  // Add to map for O(1) lookup",
+    "        return shapeId;",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Create a circle and return its ID.",
+    "     * ",
+    "     * @param centerX Center X coordinate",
+    "     * @param centerY Center Y coordinate",
+    "     * @param radius Circle radius",
+    "     * @return Shape ID in format \"circle_N\"",
+    "     */",
+    "    public String createCircle(int centerX, int centerY, int radius) {",
+    "        circleCounter++;",
+    "        String shapeId = \"circle_\" + circleCounter;",
+    "        Circle circle = new Circle(shapeId, centerX, centerY, radius);",
+    "        shapes.add(circle);",
+    "        shapeMap.put(shapeId, circle);  // Add to map for O(1) lookup",
+    "        return shapeId;",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Find the topmost shape at the given coordinates.",
+    "     * ",
+    "     * @param x Query X coordinate",
+    "     * @param y Query Y coordinate",
+    "     * @return Shape ID of topmost shape containing the point, or null",
+    "     */",
+    "    public String getShapeAt(int x, int y) {",
+    "        // Iterate from back (newest/top) to front (oldest/bottom)",
+    "        for (int i = shapes.size() - 1; i >= 0; i--) {",
+    "            Shape shape = shapes.get(i);",
+    "            if (shape.contains(x, y)) {",
+    "                return shape.getId();",
+    "            }",
+    "        }",
+    "        return null;",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Move a shape to a new position.",
+    "     * ",
+    "     * For rectangles: (newX, newY) becomes the new top-left corner.",
+    "     * For circles: (newX, newY) becomes the new center.",
+    "     * ",
+    "     * IMPORTANT: Z-order is preserved - moving does NOT bring shape to front.",
+    "     * ",
+    "     * @param shapeId ID of the shape to move",
+    "     * @param newX New X position",
+    "     * @param newY New Y position",
+    "     */",
+    "    public void moveShape(String shapeId, int newX, int newY) {",
+    "        // O(1) lookup using HashMap",
+    "        Shape shape = shapeMap.get(shapeId);",
+    "        if (shape != null) {",
+    "            // In-place update - list order unchanged, z-order preserved",
+    "            shape.moveTo(newX, newY);",
+    "        }",
+    "    }",
+    "    ",
+    "    public static void main(String[] args) {",
+    "        System.out.println(\"============================================================\");",
+    "        System.out.println(\"Part 2: Move Shape - Demo\");",
+    "        System.out.println(\"============================================================\");",
+    "        ",
+    "        // Example 1: Moving a rectangle",
+    "        System.out.println(\"\\n--- Example 1: Moving a rectangle ---\");",
+    "        Canvas canvas = new Canvas();",
+    "        ",
+    "        String r1 = canvas.createRectangle(0, 0, 50, 50);",
+    "        System.out.println(\"createRectangle(0, 0, 50, 50) -> \" + r1);",
+    "        ",
+    "        String r2 = canvas.createRectangle(25, 25, 50, 50);",
+    "        System.out.println(\"createRectangle(25, 25, 50, 50) -> \" + r2);",
+    "        ",
+    "        String result = canvas.getShapeAt(30, 30);",
+    "        System.out.println(\"getShapeAt(30, 30) -> \" + result + \"  (rect_2 is on top)\");",
+    "        ",
+    "        System.out.println(\"\\nmoveShape('rect_1', 100, 100)  // Move rect_1 away\");",
+    "        canvas.moveShape(\"rect_1\", 100, 100);",
+    "        ",
+    "        result = canvas.getShapeAt(30, 30);",
+    "        System.out.println(\"getShapeAt(30, 30) -> \" + result + \"  (only rect_2 contains this point now)\");",
+    "        ",
+    "        // Example 2: Moving circle to create overlap",
+    "        System.out.println(\"\\n--- Example 2: Moving circle to create overlap ---\");",
+    "        Canvas canvas2 = new Canvas();",
+    "        ",
+    "        r1 = canvas2.createRectangle(0, 0, 40, 40);",
+    "        System.out.println(\"createRectangle(0, 0, 40, 40) -> \" + r1);",
+    "        ",
+    "        String c1 = canvas2.createCircle(100, 100, 20);",
+    "        System.out.println(\"createCircle(100, 100, 20) -> \" + c1);",
+    "        ",
+    "        System.out.println(\"\\nmoveShape('circle_1', 20, 20)  // Move circle to overlap rect\");",
+    "        canvas2.moveShape(\"circle_1\", 20, 20);",
+    "        ",
+    "        result = canvas2.getShapeAt(20, 20);",
+    "        System.out.println(\"getShapeAt(20, 20) -> \" + result + \"  (circle is on top - created after rect)\");",
+    "        ",
+    "        // Example 3: Z-order preservation demo",
+    "        System.out.println(\"\\n--- Example 3: Z-order preservation ---\");",
+    "        Canvas canvas3 = new Canvas();",
+    "        canvas3.createRectangle(0, 0, 100, 100);   // rect_1 at bottom",
+    "        canvas3.createRectangle(50, 50, 100, 100); // rect_2 on top",
+    "        ",
+    "        System.out.println(\"Initial: rect_1 at (0,0), rect_2 at (50,50)\");",
+    "        System.out.println(\"getShapeAt(75, 75) -> \" + canvas3.getShapeAt(75, 75) + \"  (overlap, rect_2 wins)\");",
+    "        ",
+    "        System.out.println(\"\\nmoveShape('rect_1', 50, 50)  // Move rect_1 to same position as rect_2\");",
+    "        canvas3.moveShape(\"rect_1\", 50, 50);",
+    "        ",
+    "        System.out.println(\"getShapeAt(75, 75) -> \" + canvas3.getShapeAt(75, 75) + \"  (rect_2 STILL on top!)\");",
+    "        System.out.println(\"^ Z-order preserved: rect_2 was created after rect_1\");",
+    "        ",
+    "        System.out.println(\"\\n============================================================\");",
+    "        System.out.println(\"All Part 2 examples completed!\");",
+    "    }",
+    "}"
+  ],
+  "code_walkthrough": [
+    {
+      "lines": "1-35 (Python)",
+      "explanation": "Shape base class with mutable position fields (x, y) and move_to() method for in-place updates"
+    },
+    {
+      "lines": "38-63 (Python)",
+      "explanation": "Rectangle class - stores top-left corner and dimensions, contains() checks point-in-rectangle"
+    },
+    {
+      "lines": "66-90 (Python)",
+      "explanation": "Circle class - stores center and radius, contains() uses squared distance formula"
+    },
+    {
+      "lines": "93-110 (Python)",
+      "explanation": "Canvas __init__ - initializes List for z-order AND HashMap for O(1) lookup (key change for Part 2)"
+    },
+    {
+      "lines": "112-145 (Python)",
+      "explanation": "create_rectangle/create_circle - append to list AND add to map (same object in both)"
+    },
+    {
+      "lines": "147-160 (Python)",
+      "explanation": "get_shape_at - unchanged from Part 1, iterates backwards through list"
+    },
+    {
+      "lines": "162-180 (Python)",
+      "explanation": "moveShape - O(1) HashMap lookup, then in-place coordinate update. Z-order preserved automatically."
+    }
+  ],
+  "complexity_analysis": {
+    "time": {
+      "new_methods": {
+        "moveShape": {
+          "complexity": "O(1)",
+          "explanation": "HashMap lookup O(1) + field assignment O(1)"
+        }
+      },
+      "overall_change": "createRectangle/createCircle gain O(1) HashMap insert, but remain O(1) overall. getShapeAt unchanged at O(n)."
+    },
+    "space": {
+      "additional_space": "O(n)",
+      "explanation": "HashMap stores n references to Shape objects. Note: shapes themselves are not duplicated - both list and map reference the same objects."
+    }
+  },
+  "dry_run": {
+    "example_input": "Canvas(), createRectangle(0,0,50,50), createRectangle(25,25,50,50), getShapeAt(30,30), moveShape('rect_1',100,100), getShapeAt(30,30)",
+    "steps": [
+      {
+        "step": 1,
+        "action": "Canvas()",
+        "state": "shapes=[], shapeMap={}",
+        "explanation": "Initialize empty canvas"
+      },
+      {
+        "step": 2,
+        "action": "createRectangle(0,0,50,50)",
+        "state": "shapes=[rect_1], shapeMap={'rect_1': rect_1}",
+        "explanation": "rect_1 at (0,0) covers (0-49, 0-49)"
+      },
+      {
+        "step": 3,
+        "action": "createRectangle(25,25,50,50)",
+        "state": "shapes=[rect_1, rect_2], shapeMap={'rect_1': rect_1, 'rect_2': rect_2}",
+        "explanation": "rect_2 at (25,25) covers (25-74, 25-74). On top (later in list)"
+      },
+      {
+        "step": 4,
+        "action": "getShapeAt(30,30)",
+        "state": "Iterate backwards: rect_2 first",
+        "explanation": "rect_2.contains(30,30)=true. Return 'rect_2'"
+      },
+      {
+        "step": 5,
+        "action": "moveShape('rect_1', 100, 100)",
+        "state": "rect_1.x=100, rect_1.y=100. List ORDER unchanged",
+        "explanation": "Lookup in map, update coordinates. rect_1 now covers (100-149, 100-149)"
+      },
+      {
+        "step": 6,
+        "action": "getShapeAt(30,30)",
+        "state": "rect_1.contains(30,30)=false, rect_2.contains(30,30)=true",
+        "explanation": "Return 'rect_2'"
+      }
+    ],
+    "final_output": "[null, 'rect_1', 'rect_2', 'rect_2', null, 'rect_2']"
+  },
+  "debugging_playbook": {
+    "fast_sanity_checks": [
+      "Move a shape and verify it's no longer at old position",
+      "Move to create overlap and verify z-order"
+    ],
+    "likely_bugs": [
+      "Forgetting to add to HashMap in create methods",
+      "Creating new shape in moveShape instead of updating existing",
+      "Accidentally modifying list order"
+    ],
+    "recommended_logs_or_asserts": [
+      "assert shapeId in self._shape_map, 'Shape missing from map'",
+      "print(f'Before move: {shape.x}, {shape.y}')",
+      "print(f'List order: {[s.id for s in self._shapes]}')"
+    ],
+    "how_to_localize": "1. Print shape_map keys to verify ID exists. 2. Print coordinates before/after move. 3. Print list order to verify it hasn't changed."
+  },
+  "edge_cases": [
+    {
+      "case": "Move non-existent shape ID",
+      "handling": "Silently do nothing (shape not in map)",
+      "gotcha": "Don't throw exception - just no-op"
+    },
+    {
+      "case": "Move shape to negative coordinates",
+      "handling": "Allowed - shape can be off-canvas",
+      "gotcha": "Don't restrict coordinates"
+    },
+    {
+      "case": "Move shape to overlap with another",
+      "handling": "Works correctly - z-order preserved",
+      "gotcha": "Don't assume moving brings to front"
+    },
+    {
+      "case": "Move shape multiple times",
+      "handling": "Each move updates same object in-place",
+      "gotcha": "Don't accumulate or create new objects"
+    }
+  ],
+  "test_cases": [
+    {
+      "name": "Basic move - shape leaves query point",
+      "input": "createRectangle(0,0,50,50), moveShape('rect_1',100,100), getShapeAt(25,25)",
+      "expected": "None",
+      "explanation": "After moving rect_1 away, point (25,25) is empty"
+    },
+    {
+      "name": "Move to create overlap - z-order preserved",
+      "input": "createRectangle(0,0,50,50), createRectangle(100,100,50,50), moveShape('rect_1',100,100), getShapeAt(125,125)",
+      "expected": "rect_2",
+      "explanation": "rect_2 was created after rect_1, so it's on top even after rect_1 moves to same position"
+    },
+    {
+      "name": "Move non-existent ID",
+      "input": "moveShape('nonexistent',0,0)",
+      "expected": "No error, no effect",
+      "explanation": "Silently ignore invalid IDs"
+    },
+    {
+      "name": "Move circle - center semantics",
+      "input": "createCircle(0,0,10), moveShape('circle_1',50,50), getShapeAt(50,50)",
+      "expected": "circle_1",
+      "explanation": "Circle center moved to (50,50), so it contains that point"
+    }
+  ],
+  "common_mistakes": [
+    {
+      "mistake": "Recreating shape instead of updating",
+      "why_wrong": "Loses the object reference in the list, requires removing/re-adding which changes z-order",
+      "correct_approach": "Update x,y fields directly on existing shape object",
+      "code_example_wrong": "def move_shape(self, id, x, y):\\n    old = self.shape_map[id]\\n    new = Rectangle(id, x, y, old.w, old.h)\\n    self.shapes.remove(old)\\n    self.shapes.append(new)  # WRONG: changes z-order!",
+      "code_example_correct": "def move_shape(self, id, x, y):\\n    shape = self.shape_map[id]\\n    shape.move_to(x, y)  # In-place update"
+    },
+    {
+      "mistake": "Linear search for shape by ID",
+      "why_wrong": "O(n) instead of O(1) - violates complexity requirement",
+      "correct_approach": "Use HashMap for O(1) lookup",
+      "code_example_wrong": "def move_shape(self, id, x, y):\\n    for shape in self.shapes:\\n        if shape.id == id:\\n            shape.move_to(x, y)",
+      "code_example_correct": "def move_shape(self, id, x, y):\\n    if id in self.shape_map:\\n        self.shape_map[id].move_to(x, y)"
+    },
+    {
+      "mistake": "Forgetting to update HashMap in create methods",
+      "why_wrong": "moveShape will fail to find shapes",
+      "correct_approach": "Add to both list AND map in create methods",
+      "code_example_wrong": "def create_rectangle(...):\\n    rect = Rectangle(...)\\n    self.shapes.append(rect)\\n    return rect.id  # Forgot shapeMap!",
+      "code_example_correct": "def create_rectangle(...):\\n    rect = Rectangle(...)\\n    self.shapes.append(rect)\\n    self.shape_map[rect.id] = rect\\n    return rect.id"
+    }
+  ],
+  "interview_tips": {
+    "how_to_present": "Start by explaining the key insight: we need O(1) lookup by ID, so we add a HashMap. Emphasize that the same object is in both data structures, so updating it updates 'both'. Mention z-order preservation explicitly.",
+    "what_to_mention": [
+      "HashMap for O(1) lookup - essential data structure addition",
+      "Same object reference in list and map - elegant solution",
+      "Z-order preserved because list order unchanged",
+      "In-place update vs recreating shapes"
+    ],
+    "time_allocation": "2 min understanding, 3 min explaining approach, 5 min coding, 2 min testing",
+    "if_stuck": [
+      "Draw the data structures showing shared object references",
+      "Think about what changes vs what stays the same"
+    ]
+  },
+  "connection_to_next_part": "Part 3 might add: delete shape, bring to front, resize, undo/redo, or shape grouping. The HashMap enables O(1) access for any future operation. The Shape base class can add more methods. Consider what happens if delete is added - need to remove from both list AND map.",
+  "communication_script": {
+    "transition_from_previous": "Great, Part 1 is working. For Part 2, I need to add moveShape which updates a shape's position. The key challenge is: how do I find the shape by ID efficiently, and how do I preserve z-order?",
+    "explaining_changes": "The key change is adding a HashMap for O(1) ID lookup. I'll store the same Shape object in both the list and map. When I update the shape's coordinates, both data structures automatically reflect the change. The list order stays the same, so z-order is preserved.",
+    "while_extending_code": [
+      "I'm adding shapeMap HashMap to the constructor...",
+      "In create methods, I add to both list AND map...",
+      "moveShape just looks up in map and updates coordinates..."
+    ],
+    "after_completing": "This now handles Part 2. moveShape is O(1) using HashMap lookup. Z-order is preserved because we update in-place without touching the list. Ready for Part 3?"
+  },
+  "time_milestones": {
+    "time_budget": "8-12 minutes for this part",
+    "by_2_min": "Understand that we need O(1) lookup by ID, decide to add HashMap",
+    "by_5_min": "Explain approach, identify all code changes (constructor, create methods, new moveShape)",
+    "by_10_min": "Code complete, test with examples showing z-order preservation",
+    "warning_signs": "If still thinking about data structures at 5 min, just use HashMap - it's the standard choice"
+  },
+  "recovery_strategies": {
+    "if_part_builds_wrong": "If Part 1 has bugs (like wrong hit testing), fix them first. Say: 'Let me quickly fix the contains logic before adding move.'",
+    "if_new_requirement_unclear": "Ask: 'When I move a shape, should it come to the front, or preserve its z-order?' (Answer: preserve)",
+    "if_running_behind": "Just implement the HashMap and moveShape. Skip edge case handling (non-existent ID) if needed - mention it verbally."
+  },
+  "signal_points": {
+    "wow_factors_for_followup": [
+      "Immediately recognizing HashMap is needed for O(1) lookup",
+      "Explaining that same object reference makes update elegant",
+      "Proactively mentioning z-order preservation without being asked",
+      "Discussing memory efficiency (no object duplication)",
+      "Mentioning that this pattern (list + map) is common in UI frameworks"
+    ]
+  },
+  "pattern_recognition": {
+    "pattern": "Dual Data Structure (List + HashMap)",
+    "indicators": [
+      "Need ordered iteration (z-order)",
+      "Need O(1) lookup by key (ID)",
+      "Same data, different access patterns"
+    ],
+    "similar_problems": [
+      "LRU Cache (List + HashMap)",
+      "Design Twitter (List + HashMap)",
+      "All O(1) Data Structure"
+    ],
+    "template": "class Container:\\n    def __init__(self):\\n        self.ordered_list = []  # For iteration/ordering\\n        self.lookup_map = {}   # For O(1) by key\\n    \\n    def add(self, key, item):\\n        self.ordered_list.append(item)\\n        self.lookup_map[key] = item\\n    \\n    def get(self, key):\\n        return self.lookup_map.get(key)"
+  },
+  "thinking_process": [
+    {
+      "step": 1,
+      "thought": "When I see 'move by ID', I immediately think about lookup time",
+      "why": "Linear search through list would be O(n), need HashMap for O(1)"
+    },
+    {
+      "step": 2,
+      "thought": "The constraint 'z-order preserved' is crucial",
+      "why": "This tells me I can't remove/re-add to list - must update in-place"
+    },
+    {
+      "step": 3,
+      "thought": "If list and map point to same object...",
+      "why": "Then updating the object updates 'both' automatically - elegant!"
+    },
+    {
+      "step": 4,
+      "thought": "What about the create methods?",
+      "why": "They need to add to BOTH data structures - easy to forget the map"
+    }
+  ],
+  "interviewer_perspective": {
+    "what_they_evaluate": [
+      "Can you identify the need for a new data structure?",
+      "Do you understand the z-order preservation requirement?",
+      "Can you extend existing code cleanly without rewriting?",
+      "Do you test the new functionality properly?"
+    ],
+    "bonus_points": [
+      "Mentioning shared object references",
+      "Discussing the tradeoff (O(n) extra space for O(1) lookup)",
+      "Noting that this pattern appears in real UI frameworks",
+      "Proactively handling edge cases (non-existent ID)"
+    ],
+    "red_flags": [
+      "Suggesting to search through list for ID (O(n))",
+      "Recreating shapes which would change z-order",
+      "Not understanding that objects are shared by reference",
+      "Forgetting to update HashMap in create methods"
+    ]
+  },
+  "ai_copilot_tips": {
+    "what_to_do": [
+      "Use AI for boilerplate getter/setter code",
+      "Let it autocomplete the moveShape method once you've written the signature",
+      "Use it to generate test cases"
+    ],
+    "what_not_to_do": [
+      "Don't let AI decide to use a different data structure",
+      "Verify it adds to both list AND map in create methods",
+      "Check that it doesn't accidentally reorder the list"
+    ]
+  },
+  "red_flags_to_avoid": {
+    "behavioral": [
+      "Not asking about z-order behavior",
+      "Staying silent while thinking about HashMap - explain your reasoning"
+    ],
+    "technical": [
+      "Using linear search when O(1) is required",
+      "Modifying list order when moving",
+      "Creating new shape objects instead of updating"
+    ],
+    "communication": [
+      "Not explaining why HashMap is needed",
+      "Not testing z-order preservation scenario"
+    ]
+  },
+  "final_checklist": {
+    "before_saying_done": [
+      "Is moveShape O(1)? (HashMap lookup + field update)",
+      "Did I add to shapeMap in BOTH create methods?",
+      "Did I trace an example showing z-order is preserved after move?",
+      "Does moving a non-existent ID fail gracefully?"
+    ],
+    "quick_code_review": [
+      "HashMap initialized in constructor",
+      "Both list.append() and map.put() in create methods",
+      "moveShape uses map lookup, not list iteration",
+      "No list.remove() or list.append() in moveShape"
+    ]
+  },
+  "production_considerations": {
+    "what_i_would_add": [
+      "Logging move operations for debugging",
+      "Validation that shape exists (throw if not found)",
+      "Event system to notify listeners of position changes",
+      "Bounds checking if canvas has limits"
+    ],
+    "why_not_in_interview": "Focus on core algorithm - data structure choice and z-order preservation. These are the signals being evaluated.",
+    "how_to_mention": "Say: 'In production, I'd add input validation and possibly events for position changes, but focusing on the core algorithm here.'"
+  },
+  "generated_at": "2026-01-18T21:28:38.509020",
+  "_meta": {
+    "problem_id": "canvas_2d_drawing_app",
+    "part_number": 2,
+    "model": "claude-opus-4-5-20251101"
+  }
+}

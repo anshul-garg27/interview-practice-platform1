@@ -1,0 +1,985 @@
+{
+  "problem_title": "Median of Two Sorted Arrays - Part 2: Find K-th Element in Two Sorted Arrays",
+  "part_number": 2,
+  "builds_on": "Part 1",
+  "difficulty": "hard",
+  "problem_understanding": {
+    "what_changes": "Part 1 focused on finding the median using a partition-based binary search on the smaller array. Part 2 **generalizes** this to finding ANY k-th smallest element. Instead of partitioning both arrays to find the middle, we use a **binary elimination** approach that discards k/2 elements in each step. This is a different algorithmic technique - recursive elimination vs. partition balancing.",
+    "new_requirements": [
+      "Support finding any k-th element, not just the median",
+      "k is 1-indexed (1st element is the minimum)",
+      "Must achieve O(log k) time complexity",
+      "Handle arbitrary k values from 1 to m+n"
+    ],
+    "new_constraints": [
+      "k must be valid: 1 \u2264 k \u2264 m + n",
+      "Cannot simply use Part 1's partition approach directly",
+      "Must efficiently handle when k/2 exceeds array bounds"
+    ],
+    "key_insight": "By comparing elements at position k/2 in both arrays, we can safely eliminate k/2 elements from one array. The array with the smaller k/2-th element cannot contain the k-th element in its first k/2 positions. This gives us O(log k) by halving the search space each iteration."
+  },
+  "requirements_coverage": {
+    "checklist": [
+      {
+        "requirement": "Find k-th smallest element in O(log k) time",
+        "how_met": "Binary elimination halves k in each recursive call/iteration",
+        "gotchas": [
+          "Off-by-one errors with 1-indexed k",
+          "Forgetting to handle when k/2 > remaining elements"
+        ]
+      },
+      {
+        "requirement": "Handle any valid k from 1 to m+n",
+        "how_met": "Base cases for k=1 and when one array is exhausted",
+        "gotchas": [
+          "Not validating k is within bounds",
+          "Integer overflow when computing total"
+        ]
+      },
+      {
+        "requirement": "Work with empty arrays",
+        "how_met": "Check if start index exceeds array length, return from other array",
+        "gotchas": [
+          "Not handling both arrays empty",
+          "Index out of bounds when array exhausted"
+        ]
+      }
+    ],
+    "complexity_targets": [
+      {
+        "operation": "findKthElement",
+        "target": "O(log k)",
+        "achieved": "O(log k)",
+        "why": "Each step eliminates approximately k/2 elements, so we need log\u2082(k) steps"
+      },
+      {
+        "operation": "findMedianSortedArrays (using findKthElement)",
+        "target": "O(log(m+n))",
+        "achieved": "O(log(m+n))",
+        "why": "Median is k=(m+n)/2, so O(log k) = O(log(m+n))"
+      }
+    ],
+    "non_goals": [
+      "Finding multiple k-th elements in one call",
+      "Modifying the input arrays",
+      "Supporting unsorted arrays"
+    ]
+  },
+  "assumptions": [
+    "k is 1-indexed (confirmed by problem statement and examples)",
+    "Arrays are already sorted in ascending order",
+    "Arrays may contain duplicates (algorithm handles this correctly)",
+    "Integer overflow not a concern for array indices",
+    "Ask interviewer: Should I handle k out of bounds with exception or return -1?"
+  ],
+  "tradeoffs": [
+    {
+      "decision": "Recursive vs Iterative implementation",
+      "chosen": "Provide both - recursive for clarity, iterative for space efficiency",
+      "why": "Recursive is cleaner to understand and explain; iterative has O(1) space",
+      "alternative": "Purely recursive",
+      "when_to_switch": "If space is critical, use iterative; if explaining algorithm, use recursive"
+    },
+    {
+      "decision": "Binary elimination vs Partition approach (Part 1)",
+      "chosen": "Binary elimination for k-th element",
+      "why": "More natural for arbitrary k; partition approach optimized for median specifically",
+      "alternative": "Modify partition approach to handle arbitrary k",
+      "when_to_switch": "If only finding median, Part 1 partition approach may be cleaner"
+    }
+  ],
+  "extensibility_notes": {
+    "what_to_keep_stable": [
+      "Function signature: findKthElement(nums1, nums2, k)",
+      "1-indexed k convention",
+      "O(log k) time complexity guarantee"
+    ],
+    "what_to_change": [
+      "findMedianSortedArrays can now be implemented using findKthElement",
+      "Part 1's solution can be refactored to use this as a building block"
+    ],
+    "interfaces_and_boundaries": "findKthElement is a standalone utility that findMedianSortedArrays calls. This separation allows Part 3 to add more operations without modifying the core kth-element logic.",
+    "invariants": [
+      "After each elimination step: k + eliminated_count = original_k",
+      "start1 + start2 + remaining_k = original positions we need to search",
+      "We always eliminate at least 1 element when k > 1"
+    ]
+  },
+  "visual_explanation": {
+    "before_after": "```\\nBEFORE (Finding 7th element):\\n================================\\nnums1: [1, 3, 5, 7, 9, 11]  (6 elements)\\nnums2: [2, 4, 6, 8, 10, 12] (6 elements)\\nk = 7\\n\\nAFTER Step 1 (eliminate k/2=3 from nums1):\\n================================\\nnums1: [_, _, _, 7, 9, 11]  (start1=3)\\nnums2: [2, 4, 6, 8, 10, 12] (start2=0)\\nk = 7 - 3 = 4\\n\\nAFTER Step 2 (eliminate k/2=2 from nums2):\\n================================\\nnums1: [_, _, _, 7, 9, 11]  (start1=3)\\nnums2: [_, _, 6, 8, 10, 12] (start2=2)\\nk = 4 - 2 = 2\\n\\nAFTER Step 3 (eliminate 1 from nums2):\\n================================\\nnums1: [_, _, _, 7, 9, 11]  (start1=3)\\nnums2: [_, _, _, 8, 10, 12] (start2=3)\\nk = 2 - 1 = 1\\n\\nFINAL: k=1, return min(7, 8) = 7 \u2713\\n```",
+    "algorithm_flow": "```\\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\\n\u2502                    FIND K-TH ELEMENT                     \u2502\\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\\n                           \u2502\\n                           \u25bc\\n              \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\\n              \u2502 Check Base Cases:      \u2502\\n              \u2502 \u2022 nums1 exhausted?     \u2502\\n              \u2502 \u2022 nums2 exhausted?     \u2502\\n              \u2502 \u2022 k == 1?              \u2502\\n              \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\\n                           \u2502\\n              \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\\n              \u2502 YES                     \u2502 NO\\n              \u25bc                         \u25bc\\n    \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510    \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\\n    \u2502 Return directly: \u2502    \u2502 Compare at k/2:      \u2502\\n    \u2502 \u2022 Other array[k] \u2502    \u2502 idx1 = min(k/2, m)-1 \u2502\\n    \u2502 \u2022 min(a[0],b[0]) \u2502    \u2502 idx2 = min(k/2, n)-1 \u2502\\n    \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518    \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\\n                                       \u2502\\n                    \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\\n                    \u2502 nums1[idx1] <= nums2[idx2]?         \u2502\\n                    \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\\n                                       \u2502\\n              \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\\n              \u2502 YES                                             \u2502 NO\\n              \u25bc                                                 \u25bc\\n    \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510                   \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\\n    \u2502 Eliminate nums1[0..idx1]\u2502                   \u2502 Eliminate nums2[0..idx2]\u2502\\n    \u2502 start1 = idx1 + 1       \u2502                   \u2502 start2 = idx2 + 1       \u2502\\n    \u2502 k -= (idx1 - start1 + 1)\u2502                   \u2502 k -= (idx2 - start2 + 1)\u2502\\n    \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518                   \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\\n              \u2502                                                 \u2502\\n              \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\\n                                   \u2502\\n                                   \u25bc\\n                          \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\\n                          \u2502 Recurse/Loop   \u2502\\n                          \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\\n```"
+  },
+  "approaches": [
+    {
+      "name": "Naive Extension - Merge Arrays",
+      "description": "Merge both sorted arrays and return the k-th element directly",
+      "time_complexity": "O(k)",
+      "space_complexity": "O(1) with two pointers, O(k) if storing merged",
+      "why_not_optimal": "Does not meet O(log k) requirement. For large k near m+n, this degrades to O(m+n)"
+    },
+    {
+      "name": "Use Part 1 Partition Approach",
+      "description": "Modify the partition-based approach to find k-th element instead of median",
+      "time_complexity": "O(log(min(m,n)))",
+      "space_complexity": "O(1)",
+      "why_not_optimal": "More complex to adapt for arbitrary k; the elimination approach is more intuitive and directly gives O(log k)"
+    },
+    {
+      "name": "Binary Elimination (Optimal)",
+      "description": "Compare elements at k/2 positions and eliminate the smaller half. Repeat until k=1 or one array exhausted.",
+      "time_complexity": "O(log k)",
+      "space_complexity": "O(1) iterative, O(log k) recursive",
+      "key_insight": "If nums1[k/2-1] < nums2[k/2-1], then nums1[0..k/2-1] cannot contain the k-th element because even if all of nums2[0..k/2-1] were smaller, we'd only have k-1 elements before nums1[k/2-1]"
+    }
+  ],
+  "optimal_solution": {
+    "explanation_md": "## Binary Elimination Algorithm\\n\\nThe **key insight** is that we can safely eliminate k/2 elements in each step:\\n\\n### Why It Works\\n\\n1. We want the k-th smallest element across both arrays\\n2. Compare `nums1[k/2-1]` with `nums2[k/2-1]`\\n3. If `nums1[k/2-1] < nums2[k/2-1]`:\\n   - Even if ALL `k/2` elements from nums2's prefix were smaller than `nums1[k/2-1]`\\n   - We'd have at most `(k/2 - 1) + (k/2) = k - 1` elements smaller\\n   - So `nums1[k/2-1]` could be at most the (k-1)th element\\n   - **All elements before it in nums1 are definitely NOT the k-th**\\n   - We can safely eliminate them!\\n\\n### Handling Edge Cases\\n\\n1. **k/2 exceeds array length**: Use `min(k/2, array_length)` as the comparison index\\n2. **One array exhausted**: Return the k-th element from the remaining array\\n3. **k = 1**: Return the minimum of both first elements\\n\\n### Complexity Analysis\\n\\n- Each step eliminates at least `\u230ak/2\u230b` elements (at minimum 1 when k\u22652)\\n- After each step, k is reduced by the eliminated count\\n- We need at most `O(log k)` steps to reduce k to 1",
+    "data_structures": [
+      {
+        "structure": "Two pointers (start indices)",
+        "purpose": "Track the current starting position in each array without modifying inputs"
+      },
+      {
+        "structure": "Recursive calls OR while loop",
+        "purpose": "Iterate through elimination steps"
+      }
+    ],
+    "algorithm_steps": [
+      "Step 1: Initialize start indices for both arrays (start1=0, start2=0)",
+      "Step 2: Check if nums1 is exhausted (start1 >= m) \u2192 return nums2[start2 + k - 1]",
+      "Step 3: Check if nums2 is exhausted (start2 >= n) \u2192 return nums1[start1 + k - 1]",
+      "Step 4: Check if k == 1 \u2192 return min(nums1[start1], nums2[start2])",
+      "Step 5: Calculate half_k = k / 2",
+      "Step 6: Calculate comparison indices: idx1 = min(start1 + half_k - 1, m - 1), idx2 = min(start2 + half_k - 1, n - 1)",
+      "Step 7: Compare nums1[idx1] with nums2[idx2]",
+      "Step 8a: If nums1[idx1] <= nums2[idx2]: eliminate nums1[start1..idx1], set start1 = idx1 + 1, k -= (idx1 - start1 + 1)",
+      "Step 8b: Else: eliminate nums2[start2..idx2], set start2 = idx2 + 1, k -= (idx2 - start2 + 1)",
+      "Step 9: Repeat from Step 2"
+    ]
+  },
+  "solution_python_lines": [
+    "from typing import List",
+    "",
+    "",
+    "class Solution:",
+    "    \"\"\"",
+    "    Solution for finding k-th element in two sorted arrays.",
+    "    ",
+    "    This extends Part 1 (median finding) to support arbitrary k values.",
+    "    Uses binary elimination approach for O(log k) time complexity.",
+    "    \"\"\"",
+    "    ",
+    "    def findKthElement(self, nums1: List[int], nums2: List[int], k: int) -> int:",
+    "        \"\"\"",
+    "        Find the k-th smallest element in the union of two sorted arrays.",
+    "        ",
+    "        Args:",
+    "            nums1: First sorted array",
+    "            nums2: Second sorted array",
+    "            k: The position to find (1-indexed)",
+    "            ",
+    "        Returns:",
+    "            The k-th smallest element",
+    "            ",
+    "        Time Complexity: O(log k)",
+    "        Space Complexity: O(log k) for recursion, O(1) iterative",
+    "        ",
+    "        Example:",
+    "            >>> sol = Solution()",
+    "            >>> sol.findKthElement([1,3,5], [2,4,6], 4)",
+    "            4",
+    "        \"\"\"",
+    "        m, n = len(nums1), len(nums2)",
+    "        ",
+    "        # Validate k is within bounds",
+    "        if k < 1 or k > m + n:",
+    "            raise ValueError(f\"k must be between 1 and {m + n}, got {k}\")",
+    "        ",
+    "        # Use helper with start indices to avoid array slicing",
+    "        return self._kth_helper(nums1, 0, nums2, 0, k)",
+    "    ",
+    "    def _kth_helper(self, nums1: List[int], start1: int,",
+    "                    nums2: List[int], start2: int, k: int) -> int:",
+    "        \"\"\"",
+    "        Recursive helper to find k-th element.",
+    "        ",
+    "        Args:",
+    "            nums1: First sorted array",
+    "            start1: Current start index in nums1",
+    "            nums2: Second sorted array",
+    "            start2: Current start index in nums2",
+    "            k: Remaining k to find",
+    "            ",
+    "        Returns:",
+    "            The k-th smallest element from current positions",
+    "        \"\"\"",
+    "        m, n = len(nums1), len(nums2)",
+    "        ",
+    "        # Base case 1: nums1 is exhausted",
+    "        if start1 >= m:",
+    "            return nums2[start2 + k - 1]",
+    "        ",
+    "        # Base case 2: nums2 is exhausted",
+    "        if start2 >= n:",
+    "            return nums1[start1 + k - 1]",
+    "        ",
+    "        # Base case 3: k = 1, return minimum of first elements",
+    "        if k == 1:",
+    "            return min(nums1[start1], nums2[start2])",
+    "        ",
+    "        # Calculate positions to compare (handle bounds)",
+    "        half_k = k // 2",
+    "        ",
+    "        # Don't exceed array bounds",
+    "        idx1 = min(start1 + half_k - 1, m - 1)",
+    "        idx2 = min(start2 + half_k - 1, n - 1)",
+    "        ",
+    "        # Compare and eliminate",
+    "        if nums1[idx1] <= nums2[idx2]:",
+    "            # Eliminate nums1[start1..idx1]",
+    "            eliminated = idx1 - start1 + 1",
+    "            return self._kth_helper(nums1, idx1 + 1, nums2, start2, k - eliminated)",
+    "        else:",
+    "            # Eliminate nums2[start2..idx2]",
+    "            eliminated = idx2 - start2 + 1",
+    "            return self._kth_helper(nums1, start1, nums2, idx2 + 1, k - eliminated)",
+    "    ",
+    "    def findKthElementIterative(self, nums1: List[int], nums2: List[int], k: int) -> int:",
+    "        \"\"\"",
+    "        Iterative version with O(1) space complexity.",
+    "        \"\"\"",
+    "        m, n = len(nums1), len(nums2)",
+    "        ",
+    "        if k < 1 or k > m + n:",
+    "            raise ValueError(f\"k must be between 1 and {m + n}\")",
+    "        ",
+    "        start1, start2 = 0, 0",
+    "        ",
+    "        while True:",
+    "            # Base case 1: nums1 exhausted",
+    "            if start1 >= m:",
+    "                return nums2[start2 + k - 1]",
+    "            ",
+    "            # Base case 2: nums2 exhausted",
+    "            if start2 >= n:",
+    "                return nums1[start1 + k - 1]",
+    "            ",
+    "            # Base case 3: k = 1",
+    "            if k == 1:",
+    "                return min(nums1[start1], nums2[start2])",
+    "            ",
+    "            # Compare at k/2 positions",
+    "            half_k = k // 2",
+    "            idx1 = min(start1 + half_k - 1, m - 1)",
+    "            idx2 = min(start2 + half_k - 1, n - 1)",
+    "            ",
+    "            if nums1[idx1] <= nums2[idx2]:",
+    "                eliminated = idx1 - start1 + 1",
+    "                k -= eliminated",
+    "                start1 = idx1 + 1",
+    "            else:",
+    "                eliminated = idx2 - start2 + 1",
+    "                k -= eliminated",
+    "                start2 = idx2 + 1",
+    "    ",
+    "    def findMedianSortedArrays(self, nums1: List[int], nums2: List[int]) -> float:",
+    "        \"\"\"",
+    "        Find median using findKthElement as building block.",
+    "        ",
+    "        This shows how Part 2 can simplify Part 1's implementation.",
+    "        \"\"\"",
+    "        total = len(nums1) + len(nums2)",
+    "        ",
+    "        if total % 2 == 1:",
+    "            # Odd total: return middle element",
+    "            return float(self.findKthElement(nums1, nums2, (total + 1) // 2))",
+    "        else:",
+    "            # Even total: average of two middle elements",
+    "            left = self.findKthElement(nums1, nums2, total // 2)",
+    "            right = self.findKthElement(nums1, nums2, total // 2 + 1)",
+    "            return (left + right) / 2.0",
+    "",
+    "",
+    "def main():",
+    "    \"\"\"Comprehensive test suite for findKthElement.\"\"\"",
+    "    sol = Solution()",
+    "    ",
+    "    print(\"=\" * 60)",
+    "    print(\"PART 2: Find K-th Element in Two Sorted Arrays\")",
+    "    print(\"=\" * 60)",
+    "    ",
+    "    # Test case 1: Basic example from problem",
+    "    print(\"\\n--- Test 1: Basic Example ---\")",
+    "    nums1 = [1, 3, 5]",
+    "    nums2 = [2, 4, 6]",
+    "    k = 4",
+    "    result = sol.findKthElement(nums1, nums2, k)",
+    "    merged = sorted(nums1 + nums2)",
+    "    print(f\"nums1 = {nums1}\")",
+    "    print(f\"nums2 = {nums2}\")",
+    "    print(f\"Merged = {merged}\")",
+    "    print(f\"k = {k}\")",
+    "    print(f\"Result: {result}, Expected: 4\")",
+    "    assert result == 4, \"Test 1 failed!\"",
+    "    print(\"\u2713 PASSED\")",
+    "    ",
+    "    # Test case 2: Example from problem",
+    "    print(\"\\n--- Test 2: Second Example ---\")",
+    "    nums1 = [1, 2]",
+    "    nums2 = [3, 4, 5, 6, 7]",
+    "    k = 5",
+    "    result = sol.findKthElement(nums1, nums2, k)",
+    "    merged = sorted(nums1 + nums2)",
+    "    print(f\"nums1 = {nums1}\")",
+    "    print(f\"nums2 = {nums2}\")",
+    "    print(f\"Merged = {merged}\")",
+    "    print(f\"k = {k}\")",
+    "    print(f\"Result: {result}, Expected: 5\")",
+    "    assert result == 5, \"Test 2 failed!\"",
+    "    print(\"\u2713 PASSED\")",
+    "    ",
+    "    # Test case 3: k = 1 (minimum element)",
+    "    print(\"\\n--- Test 3: k = 1 (minimum) ---\")",
+    "    nums1 = [2, 3, 4]",
+    "    nums2 = [1, 5, 6]",
+    "    k = 1",
+    "    result = sol.findKthElement(nums1, nums2, k)",
+    "    print(f\"nums1 = {nums1}, nums2 = {nums2}, k = {k}\")",
+    "    print(f\"Result: {result}, Expected: 1\")",
+    "    assert result == 1, \"Test 3 failed!\"",
+    "    print(\"\u2713 PASSED\")",
+    "    ",
+    "    # Test case 4: k = total length (maximum element)",
+    "    print(\"\\n--- Test 4: k = total (maximum) ---\")",
+    "    nums1 = [1, 3, 5]",
+    "    nums2 = [2, 4, 6]",
+    "    k = 6",
+    "    result = sol.findKthElement(nums1, nums2, k)",
+    "    print(f\"nums1 = {nums1}, nums2 = {nums2}, k = {k}\")",
+    "    print(f\"Result: {result}, Expected: 6\")",
+    "    assert result == 6, \"Test 4 failed!\"",
+    "    print(\"\u2713 PASSED\")",
+    "    ",
+    "    # Test case 5: One empty array",
+    "    print(\"\\n--- Test 5: One Empty Array ---\")",
+    "    nums1 = []",
+    "    nums2 = [1, 2, 3, 4, 5]",
+    "    k = 3",
+    "    result = sol.findKthElement(nums1, nums2, k)",
+    "    print(f\"nums1 = {nums1}, nums2 = {nums2}, k = {k}\")",
+    "    print(f\"Result: {result}, Expected: 3\")",
+    "    assert result == 3, \"Test 5 failed!\"",
+    "    print(\"\u2713 PASSED\")",
+    "    ",
+    "    # Test case 6: Large k/2 exceeds one array",
+    "    print(\"\\n--- Test 6: k/2 Exceeds Array Length ---\")",
+    "    nums1 = [1, 2]",
+    "    nums2 = [3, 4, 5, 6, 7, 8, 9, 10]",
+    "    k = 7",
+    "    result = sol.findKthElement(nums1, nums2, k)",
+    "    merged = sorted(nums1 + nums2)",
+    "    print(f\"nums1 = {nums1}, nums2 = {nums2}\")",
+    "    print(f\"Merged = {merged}\")",
+    "    print(f\"k = {k}, Result: {result}, Expected: {merged[k-1]}\")",
+    "    assert result == merged[k-1], \"Test 6 failed!\"",
+    "    print(\"\u2713 PASSED\")",
+    "    ",
+    "    # Test case 7: Iterative version",
+    "    print(\"\\n--- Test 7: Iterative Version ---\")",
+    "    nums1 = [1, 3, 5, 7, 9]",
+    "    nums2 = [2, 4, 6, 8, 10]",
+    "    k = 7",
+    "    result = sol.findKthElementIterative(nums1, nums2, k)",
+    "    print(f\"nums1 = {nums1}, nums2 = {nums2}, k = {k}\")",
+    "    print(f\"Result (iterative): {result}, Expected: 7\")",
+    "    assert result == 7, \"Test 7 failed!\"",
+    "    print(\"\u2713 PASSED\")",
+    "    ",
+    "    # Test case 8: Use findKthElement for median",
+    "    print(\"\\n--- Test 8: Median via findKthElement ---\")",
+    "    nums1 = [1, 3]",
+    "    nums2 = [2]",
+    "    median = sol.findMedianSortedArrays(nums1, nums2)",
+    "    print(f\"nums1 = {nums1}, nums2 = {nums2}\")",
+    "    print(f\"Median: {median}, Expected: 2.0\")",
+    "    assert median == 2.0, \"Test 8 failed!\"",
+    "    print(\"\u2713 PASSED\")",
+    "    ",
+    "    # Detailed walkthrough",
+    "    print(\"\\n\" + \"=\" * 60)",
+    "    print(\"DETAILED WALKTHROUGH: Finding 7th element\")",
+    "    print(\"=\" * 60)",
+    "    nums1 = [1, 3, 5, 7, 9, 11]",
+    "    nums2 = [2, 4, 6, 8, 10, 12]",
+    "    print(f\"nums1 = {nums1}\")",
+    "    print(f\"nums2 = {nums2}\")",
+    "    print(f\"Finding k=7\")",
+    "    print(f\"\\nMerged would be: {sorted(nums1 + nums2)}\")",
+    "    print(f\"7th element: {sorted(nums1 + nums2)[6]}\")",
+    "    print(f\"\\nAlgorithm result: {sol.findKthElement(nums1, nums2, 7)}\")",
+    "    ",
+    "    print(\"\\n\" + \"=\" * 60)",
+    "    print(\"ALL TESTS PASSED!\")",
+    "    print(\"=\" * 60)",
+    "",
+    "",
+    "if __name__ == \"__main__\":",
+    "    main()"
+  ],
+  "solution_java_lines": [
+    "import java.util.*;",
+    "",
+    "/**",
+    " * Solution for finding k-th element in two sorted arrays.",
+    " * ",
+    " * This extends Part 1 (median finding) to support arbitrary k values.",
+    " * Uses binary elimination approach for O(log k) time complexity.",
+    " */",
+    "public class Solution {",
+    "    ",
+    "    /**",
+    "     * Find the k-th smallest element in the union of two sorted arrays.",
+    "     *",
+    "     * @param nums1 First sorted array",
+    "     * @param nums2 Second sorted array",
+    "     * @param k The position to find (1-indexed)",
+    "     * @return The k-th smallest element",
+    "     *",
+    "     * Time Complexity: O(log k)",
+    "     * Space Complexity: O(1) - iterative implementation",
+    "     */",
+    "    public int findKthElement(int[] nums1, int[] nums2, int k) {",
+    "        int m = nums1.length;",
+    "        int n = nums2.length;",
+    "        ",
+    "        // Validate k is within bounds",
+    "        if (k < 1 || k > m + n) {",
+    "            throw new IllegalArgumentException(",
+    "                String.format(\"k must be between 1 and %d, got %d\", m + n, k));",
+    "        }",
+    "        ",
+    "        // Iterative approach for O(1) space",
+    "        int start1 = 0, start2 = 0;",
+    "        ",
+    "        while (true) {",
+    "            // Base case 1: nums1 is exhausted",
+    "            if (start1 >= m) {",
+    "                return nums2[start2 + k - 1];",
+    "            }",
+    "            ",
+    "            // Base case 2: nums2 is exhausted",
+    "            if (start2 >= n) {",
+    "                return nums1[start1 + k - 1];",
+    "            }",
+    "            ",
+    "            // Base case 3: k = 1",
+    "            if (k == 1) {",
+    "                return Math.min(nums1[start1], nums2[start2]);",
+    "            }",
+    "            ",
+    "            // Compare elements at k/2 positions",
+    "            int halfK = k / 2;",
+    "            ",
+    "            // Handle case where k/2 exceeds remaining elements",
+    "            int idx1 = Math.min(start1 + halfK - 1, m - 1);",
+    "            int idx2 = Math.min(start2 + halfK - 1, n - 1);",
+    "            ",
+    "            if (nums1[idx1] <= nums2[idx2]) {",
+    "                // Eliminate nums1[start1..idx1]",
+    "                int eliminated = idx1 - start1 + 1;",
+    "                k -= eliminated;",
+    "                start1 = idx1 + 1;",
+    "            } else {",
+    "                // Eliminate nums2[start2..idx2]",
+    "                int eliminated = idx2 - start2 + 1;",
+    "                k -= eliminated;",
+    "                start2 = idx2 + 1;",
+    "            }",
+    "        }",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Recursive version for clearer understanding.",
+    "     */",
+    "    public int findKthElementRecursive(int[] nums1, int[] nums2, int k) {",
+    "        return kthHelper(nums1, 0, nums2, 0, k);",
+    "    }",
+    "    ",
+    "    private int kthHelper(int[] nums1, int start1, int[] nums2, int start2, int k) {",
+    "        int m = nums1.length;",
+    "        int n = nums2.length;",
+    "        ",
+    "        // Base case 1: nums1 exhausted",
+    "        if (start1 >= m) {",
+    "            return nums2[start2 + k - 1];",
+    "        }",
+    "        ",
+    "        // Base case 2: nums2 exhausted",
+    "        if (start2 >= n) {",
+    "            return nums1[start1 + k - 1];",
+    "        }",
+    "        ",
+    "        // Base case 3: k = 1",
+    "        if (k == 1) {",
+    "            return Math.min(nums1[start1], nums2[start2]);",
+    "        }",
+    "        ",
+    "        int halfK = k / 2;",
+    "        int idx1 = Math.min(start1 + halfK - 1, m - 1);",
+    "        int idx2 = Math.min(start2 + halfK - 1, n - 1);",
+    "        ",
+    "        if (nums1[idx1] <= nums2[idx2]) {",
+    "            int eliminated = idx1 - start1 + 1;",
+    "            return kthHelper(nums1, idx1 + 1, nums2, start2, k - eliminated);",
+    "        } else {",
+    "            int eliminated = idx2 - start2 + 1;",
+    "            return kthHelper(nums1, start1, nums2, idx2 + 1, k - eliminated);",
+    "        }",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Find median using findKthElement as building block.",
+    "     * Shows how Part 2 can simplify Part 1's implementation.",
+    "     */",
+    "    public double findMedianSortedArrays(int[] nums1, int[] nums2) {",
+    "        int total = nums1.length + nums2.length;",
+    "        ",
+    "        if (total % 2 == 1) {",
+    "            // Odd total: return middle element",
+    "            return findKthElement(nums1, nums2, (total + 1) / 2);",
+    "        } else {",
+    "            // Even total: average of two middle elements",
+    "            int left = findKthElement(nums1, nums2, total / 2);",
+    "            int right = findKthElement(nums1, nums2, total / 2 + 1);",
+    "            return (left + right) / 2.0;",
+    "        }",
+    "    }",
+    "    ",
+    "    public static void main(String[] args) {",
+    "        Solution sol = new Solution();",
+    "        ",
+    "        System.out.println(\"============================================================\");",
+    "        System.out.println(\"PART 2: Find K-th Element in Two Sorted Arrays\");",
+    "        System.out.println(\"============================================================\");",
+    "        ",
+    "        // Test case 1: Basic example",
+    "        System.out.println(\"\\n--- Test 1: Basic Example ---\");",
+    "        int[] nums1 = {1, 3, 5};",
+    "        int[] nums2 = {2, 4, 6};",
+    "        int k = 4;",
+    "        int result = sol.findKthElement(nums1, nums2, k);",
+    "        System.out.println(\"nums1 = \" + Arrays.toString(nums1));",
+    "        System.out.println(\"nums2 = \" + Arrays.toString(nums2));",
+    "        System.out.println(\"k = \" + k);",
+    "        System.out.println(\"Result: \" + result + \", Expected: 4\");",
+    "        assert result == 4 : \"Test 1 failed!\";",
+    "        System.out.println(\"\u2713 PASSED\");",
+    "        ",
+    "        // Test case 2: Second example",
+    "        System.out.println(\"\\n--- Test 2: Second Example ---\");",
+    "        int[] nums3 = {1, 2};",
+    "        int[] nums4 = {3, 4, 5, 6, 7};",
+    "        k = 5;",
+    "        result = sol.findKthElement(nums3, nums4, k);",
+    "        System.out.println(\"nums1 = \" + Arrays.toString(nums3));",
+    "        System.out.println(\"nums2 = \" + Arrays.toString(nums4));",
+    "        System.out.println(\"k = \" + k);",
+    "        System.out.println(\"Result: \" + result + \", Expected: 5\");",
+    "        assert result == 5 : \"Test 2 failed!\";",
+    "        System.out.println(\"\u2713 PASSED\");",
+    "        ",
+    "        // Test case 3: k = 1 (minimum)",
+    "        System.out.println(\"\\n--- Test 3: k = 1 (minimum) ---\");",
+    "        int[] nums5 = {2, 3, 4};",
+    "        int[] nums6 = {1, 5, 6};",
+    "        k = 1;",
+    "        result = sol.findKthElement(nums5, nums6, k);",
+    "        System.out.println(\"Result: \" + result + \", Expected: 1\");",
+    "        assert result == 1 : \"Test 3 failed!\";",
+    "        System.out.println(\"\u2713 PASSED\");",
+    "        ",
+    "        // Test case 4: One empty array",
+    "        System.out.println(\"\\n--- Test 4: One Empty Array ---\");",
+    "        int[] empty = {};",
+    "        int[] nums7 = {1, 2, 3, 4, 5};",
+    "        k = 3;",
+    "        result = sol.findKthElement(empty, nums7, k);",
+    "        System.out.println(\"Result: \" + result + \", Expected: 3\");",
+    "        assert result == 3 : \"Test 4 failed!\";",
+    "        System.out.println(\"\u2713 PASSED\");",
+    "        ",
+    "        // Test case 5: Median via findKthElement",
+    "        System.out.println(\"\\n--- Test 5: Median via findKthElement ---\");",
+    "        int[] nums8 = {1, 3};",
+    "        int[] nums9 = {2};",
+    "        double median = sol.findMedianSortedArrays(nums8, nums9);",
+    "        System.out.println(\"Median: \" + median + \", Expected: 2.0\");",
+    "        assert median == 2.0 : \"Test 5 failed!\";",
+    "        System.out.println(\"\u2713 PASSED\");",
+    "        ",
+    "        System.out.println(\"\\n============================================================\");",
+    "        System.out.println(\"ALL TESTS PASSED!\");",
+    "        System.out.println(\"============================================================\");",
+    "    }",
+    "}"
+  ],
+  "code_walkthrough": [
+    {
+      "lines": "1-10",
+      "explanation": "Class definition and documentation explaining the binary elimination approach"
+    },
+    {
+      "lines": "12-35",
+      "explanation": "Main findKthElement method with input validation and delegation to helper"
+    },
+    {
+      "lines": "37-75",
+      "explanation": "Recursive helper function: handles base cases (array exhausted, k=1), calculates comparison indices, and recursively eliminates elements"
+    },
+    {
+      "lines": "77-110",
+      "explanation": "Iterative version with O(1) space - same logic as recursive but uses while loop"
+    },
+    {
+      "lines": "112-128",
+      "explanation": "findMedianSortedArrays reimplemented using findKthElement, demonstrating how Part 2 simplifies Part 1"
+    },
+    {
+      "lines": "130-200",
+      "explanation": "Comprehensive test suite covering edge cases and demonstrating algorithm behavior"
+    }
+  ],
+  "complexity_analysis": {
+    "time": {
+      "new_methods": {
+        "findKthElement": {
+          "complexity": "O(log k)",
+          "explanation": "Each step eliminates at least \u230ak/2\u230b elements, so we need at most 2\u2308log\u2082(k)\u2309 iterations"
+        },
+        "findMedianSortedArrays (via findKthElement)": {
+          "complexity": "O(log(m+n))",
+          "explanation": "Median is at position k=(m+n)/2, so O(log k) = O(log(m+n)). For even length, we call twice but constant factor doesn't change Big-O"
+        }
+      },
+      "overall_change": "Part 1's partition approach gave O(log(min(m,n))); Part 2's elimination approach gives O(log k). For median, k \u2248 (m+n)/2, so O(log(m+n)) which is slightly worse, but Part 2 is more flexible for arbitrary k."
+    },
+    "space": {
+      "additional_space": "O(1) iterative, O(log k) recursive",
+      "explanation": "Iterative uses only constant extra variables. Recursive uses call stack proportional to number of elimination steps."
+    }
+  },
+  "dry_run": {
+    "example_input": "nums1 = [1,3,5,7,9,11], nums2 = [2,4,6,8,10,12], k = 7",
+    "steps": [
+      {
+        "step": 1,
+        "action": "Initialize: start1=0, start2=0, k=7",
+        "state": "Considering all elements from both arrays",
+        "explanation": "Start with full arrays, looking for 7th smallest"
+      },
+      {
+        "step": 2,
+        "action": "halfK=3, idx1=2, idx2=2. Compare nums1[2]=5 vs nums2[2]=6",
+        "state": "5 < 6, so eliminate nums1[0..2]",
+        "explanation": "nums1's first 3 elements (1,3,5) cannot contain the 7th element"
+      },
+      {
+        "step": 3,
+        "action": "start1=3, k=7-3=4. halfK=2, idx1=4, idx2=1. Compare nums1[4]=9 vs nums2[1]=4",
+        "state": "4 < 9, so eliminate nums2[0..1]",
+        "explanation": "nums2's first 2 elements (2,4) cannot contain the 4th remaining element"
+      },
+      {
+        "step": 4,
+        "action": "start2=2, k=4-2=2. halfK=1, idx1=3, idx2=2. Compare nums1[3]=7 vs nums2[2]=6",
+        "state": "6 < 7, so eliminate nums2[2]",
+        "explanation": "nums2's element at index 2 (value 6) eliminated"
+      },
+      {
+        "step": 5,
+        "action": "start2=3, k=2-1=1. k=1 triggers base case",
+        "state": "Return min(nums1[3], nums2[3]) = min(7, 8) = 7",
+        "explanation": "When k=1, the answer is the smaller of the two current first elements"
+      }
+    ],
+    "final_output": "7"
+  },
+  "debugging_playbook": {
+    "fast_sanity_checks": [
+      "k=1 should return min(nums1[0], nums2[0])",
+      "One empty array should return other[k-1]",
+      "k=m+n should return max of both arrays"
+    ],
+    "likely_bugs": [
+      "Off-by-one: Using k/2 instead of k/2-1 for index",
+      "Not handling when k/2 exceeds array length",
+      "Forgetting k is 1-indexed but arrays are 0-indexed",
+      "Not reducing k correctly after elimination"
+    ],
+    "recommended_logs_or_asserts": [
+      "assert k >= 1 at start of each iteration",
+      "log: printf('start1=%d, start2=%d, k=%d', start1, start2, k)",
+      "assert eliminated >= 1 to ensure progress"
+    ],
+    "how_to_localize": "Print state at each step. Check: (1) Are base cases triggering correctly? (2) Is k decreasing by correct amount? (3) Are indices within bounds?"
+  },
+  "edge_cases": [
+    {
+      "case": "One array empty",
+      "handling": "Return nums2[start2 + k - 1] immediately",
+      "gotcha": "Don't try to access empty array"
+    },
+    {
+      "case": "k = 1",
+      "handling": "Return min(nums1[start1], nums2[start2])",
+      "gotcha": "Must handle this before trying k/2 calculation"
+    },
+    {
+      "case": "k/2 exceeds one array's remaining length",
+      "handling": "Use min(k/2, remaining_length) for that array",
+      "gotcha": "Still need to eliminate correct count"
+    },
+    {
+      "case": "Arrays with duplicates",
+      "handling": "Algorithm handles naturally with <= comparison",
+      "gotcha": "Using < instead of <= could cause issues"
+    },
+    {
+      "case": "k equals total length (finding max)",
+      "handling": "Will eventually exhaust one array, return max from other",
+      "gotcha": "Make sure bounds checking works for last element"
+    }
+  ],
+  "test_cases": [
+    {
+      "name": "Basic interleaved arrays",
+      "input": "nums1=[1,3,5], nums2=[2,4,6], k=4",
+      "expected": "4",
+      "explanation": "Merged: [1,2,3,4,5,6], 4th element is 4"
+    },
+    {
+      "name": "Non-overlapping arrays",
+      "input": "nums1=[1,2], nums2=[3,4,5,6,7], k=5",
+      "expected": "5",
+      "explanation": "Merged: [1,2,3,4,5,6,7], 5th element is 5"
+    },
+    {
+      "name": "k=1 (minimum)",
+      "input": "nums1=[3,5,7], nums2=[1,2,4], k=1",
+      "expected": "1",
+      "explanation": "Minimum of both arrays"
+    },
+    {
+      "name": "Empty first array",
+      "input": "nums1=[], nums2=[1,2,3,4,5], k=3",
+      "expected": "3",
+      "explanation": "Simply return nums2[k-1]"
+    },
+    {
+      "name": "Large k exceeding one array",
+      "input": "nums1=[1,2], nums2=[3,4,5,6,7,8,9], k=7",
+      "expected": "7",
+      "explanation": "Most elements come from nums2"
+    },
+    {
+      "name": "Arrays with duplicates",
+      "input": "nums1=[1,2,2], nums2=[2,2,3], k=3",
+      "expected": "2",
+      "explanation": "Merged: [1,2,2,2,2,3], 3rd element is 2"
+    }
+  ],
+  "common_mistakes": [
+    {
+      "mistake": "Using 0-indexed k",
+      "why_wrong": "Problem specifies k is 1-indexed; k=1 means first element",
+      "correct_approach": "When returning from exhausted array, use start + k - 1",
+      "code_example_wrong": "return nums2[start2 + k]",
+      "code_example_correct": "return nums2[start2 + k - 1]"
+    },
+    {
+      "mistake": "Not handling k/2 exceeding array bounds",
+      "why_wrong": "Will cause ArrayIndexOutOfBoundsException",
+      "correct_approach": "Use min(start + k/2 - 1, length - 1) for index",
+      "code_example_wrong": "int idx1 = start1 + halfK - 1;",
+      "code_example_correct": "int idx1 = Math.min(start1 + halfK - 1, m - 1);"
+    },
+    {
+      "mistake": "Incorrect elimination count",
+      "why_wrong": "Must count actual elements eliminated, not halfK",
+      "correct_approach": "eliminated = idx - start + 1 (actual indices eliminated)",
+      "code_example_wrong": "k -= halfK;",
+      "code_example_correct": "k -= (idx1 - start1 + 1);"
+    },
+    {
+      "mistake": "Using < instead of <= in comparison",
+      "why_wrong": "May cause infinite loop when values are equal",
+      "correct_approach": "Use <= to ensure progress in case of ties",
+      "code_example_wrong": "if (nums1[idx1] < nums2[idx2])",
+      "code_example_correct": "if (nums1[idx1] <= nums2[idx2])"
+    }
+  ],
+  "interview_tips": {
+    "how_to_present": "Start by explaining why the naive O(k) approach doesn't meet requirements. Then introduce the key insight: we can eliminate k/2 elements by comparing at k/2 positions. Draw the visual example to show which elements get eliminated.",
+    "what_to_mention": [
+      "Relationship to median: median is k-th element where k=(m+n+1)/2",
+      "Why we compare at k/2: worst case we eliminate half of k each step",
+      "Edge cases: array exhausted, k=1, k/2 exceeds length",
+      "Space tradeoff: recursive vs iterative"
+    ],
+    "time_allocation": "2 min understand, 3 min explain approach, 8 min code, 2 min test",
+    "if_stuck": [
+      "Think about what elements definitely CANNOT be the k-th element",
+      "If nums1[k/2] < nums2[k/2], how many elements from nums1 could be before the k-th?",
+      "What's the base case? When would you immediately know the answer?"
+    ]
+  },
+  "connection_to_next_part": "Part 3 might ask for: (1) Finding multiple k-th elements efficiently (k-th and (k+1)-th for even-length median), (2) Handling streaming/online queries, (3) Extending to more than 2 arrays. The findKthElement abstraction makes these extensions natural.",
+  "communication_script": {
+    "transition_from_previous": "Great, Part 1 solved the median problem using partition-based binary search. For Part 2, I need to generalize to finding ANY k-th element. The partition approach was optimized for median specifically, so I'll use a different technique called binary elimination.",
+    "explaining_changes": "The key insight is: instead of partitioning to balance halves, I can eliminate k/2 elements each step by comparing elements at the k/2 position in both arrays. The array with the smaller value at that position can't have the k-th element in its first k/2 elements.",
+    "while_extending_code": [
+      "I'm adding the findKthElement method with start index tracking to avoid array copies",
+      "The base cases are: one array exhausted (return from other), k=1 (return minimum)",
+      "I need to handle when k/2 exceeds the array length by using min()"
+    ],
+    "after_completing": "This gives us O(log k) time. For median, k is about (m+n)/2, so it's O(log(m+n)). I've also shown how Part 1's median can be reimplemented using this as a building block. Ready for Part 3?"
+  },
+  "time_milestones": {
+    "time_budget": "12-15 minutes for this part",
+    "by_2_min": "Understand we need O(log k), recognize binary elimination pattern",
+    "by_5_min": "Explain algorithm, identify base cases and elimination logic",
+    "by_10_min": "Implementation complete with proper bounds handling",
+    "warning_signs": "If still confused about why elimination works at 5 min, ask for hint about what elements can be ruled out"
+  },
+  "recovery_strategies": {
+    "if_part_builds_wrong": "Part 2 is actually a different approach than Part 1, so Part 1 bugs won't directly affect it. However, show how findKthElement can be used to implement median more simply.",
+    "if_new_requirement_unclear": "Ask: 'Is k 1-indexed or 0-indexed?' and 'Should I throw an exception or return -1 for invalid k?'",
+    "if_running_behind": "Focus on the recursive version (clearer logic). Mention iterative version saves space but implement it only if time permits."
+  },
+  "signal_points": {
+    "wow_factors_for_followup": [
+      "Immediately recognizing the binary elimination pattern",
+      "Correctly handling the k/2-exceeds-length edge case without hints",
+      "Showing how findKthElement simplifies the median implementation",
+      "Discussing the tradeoff: Part 1's O(log(min(m,n))) vs Part 2's O(log k)",
+      "Mentioning that for k near m+n, Part 1's approach might be better"
+    ]
+  },
+  "pattern_recognition": {
+    "pattern": "Binary Elimination / Divide and Conquer on Search Space",
+    "indicators": [
+      "Need to find k-th element in sorted structure",
+      "Requirement for logarithmic time",
+      "Can prove some elements definitely not the answer"
+    ],
+    "similar_problems": [
+      "LC 4 - Median of Two Sorted Arrays (Part 1)",
+      "LC 378 - Kth Smallest Element in a Sorted Matrix",
+      "LC 668 - Kth Smallest Number in Multiplication Table",
+      "LC 786 - K-th Smallest Prime Fraction"
+    ],
+    "template": "```\\nwhile k > 1:\\n    # Compare at k/2 position\\n    # Eliminate the smaller half\\n    # Reduce k by eliminated count\\nreturn base case answer\\n```"
+  },
+  "thinking_process": [
+    {
+      "step": 1,
+      "thought": "When I see 'find k-th element in sorted arrays' with O(log k) requirement, I immediately think binary search or elimination",
+      "why": "Logarithmic time means we must eliminate half the possibilities each step"
+    },
+    {
+      "step": 2,
+      "thought": "The key constraint is k/2 - if I compare elements at this position, I can safely eliminate one group",
+      "why": "Because the smaller group's elements can have at most k-1 elements smaller than them"
+    },
+    {
+      "step": 3,
+      "thought": "I need to handle when k/2 exceeds array length - use actual remaining elements",
+      "why": "Can't index beyond array bounds, but can still eliminate what's available"
+    },
+    {
+      "step": 4,
+      "thought": "Base cases: k=1 returns minimum, exhausted array returns from other",
+      "why": "These are the termination conditions that give us the answer directly"
+    }
+  ],
+  "interviewer_perspective": {
+    "what_they_evaluate": [
+      "Can you generalize from a specific problem (median) to a general one (k-th)?",
+      "Do you understand WHY the elimination is safe?",
+      "Can you handle edge cases methodically?",
+      "Is your code clean and bug-free?"
+    ],
+    "bonus_points": [
+      "Connecting Part 2 back to Part 1 (showing median uses findKthElement)",
+      "Discussing time complexity tradeoffs between approaches",
+      "Implementing both recursive and iterative versions",
+      "Proactively handling bounds with min() before being asked"
+    ],
+    "red_flags": [
+      "Trying to force Part 1's partition approach without understanding the difference",
+      "Not being able to explain why elimination is correct",
+      "Multiple off-by-one bugs",
+      "Forgetting to handle exhausted arrays"
+    ]
+  },
+  "ai_copilot_tips": {
+    "what_to_do": [
+      "Use AI to generate test cases for edge conditions",
+      "Let it help with the min() bounds checking boilerplate",
+      "Use it to verify your complexity analysis"
+    ],
+    "what_not_to_do": [
+      "Don't let AI write the core elimination logic without understanding it",
+      "Don't accept code without tracing through an example manually",
+      "Don't skip understanding why k/2 comparison works"
+    ]
+  },
+  "red_flags_to_avoid": {
+    "behavioral": [
+      "Jumping into code without explaining the elimination insight",
+      "Not drawing a visual example",
+      "Getting frustrated with off-by-one errors instead of methodically fixing them"
+    ],
+    "technical": [
+      "Using array slicing (creates copies, O(n) space)",
+      "Infinite loop from not making progress when values are equal",
+      "Integer overflow in k/2 calculation (rare but possible in some languages)"
+    ],
+    "communication": [
+      "Not explaining why this is O(log k)",
+      "Forgetting to mention the relationship between Part 1 and Part 2",
+      "Not testing edge cases after implementation"
+    ]
+  },
+  "final_checklist": {
+    "before_saying_done": [
+      "Does findKthElement handle k=1 correctly?",
+      "Does it handle empty arrays?",
+      "Does it handle k=m+n (last element)?",
+      "Is k/2 bounds-checking done with min()?",
+      "Is the elimination count calculated correctly (idx - start + 1)?"
+    ],
+    "quick_code_review": [
+      "All indices are 0-based for arrays",
+      "k parameter is 1-indexed as specified",
+      "No array copying/slicing (use start indices)",
+      "Consistent variable naming with Part 1"
+    ]
+  },
+  "production_considerations": {
+    "what_i_would_add": [
+      "Input validation with clear error messages",
+      "Logging for debugging complex cases",
+      "Unit tests covering all edge cases",
+      "Documentation with time/space complexity"
+    ],
+    "why_not_in_interview": "Focus on core algorithm correctness; mention these verbally to show production awareness",
+    "how_to_mention": "Say: 'In production, I'd add comprehensive input validation and logging to trace the elimination steps for debugging.'"
+  },
+  "generated_at": "2026-01-18T18:41:42.025096",
+  "_meta": {
+    "problem_id": "median_two_sorted_arrays",
+    "part_number": 2,
+    "model": "claude-opus-4-5-20251101"
+  }
+}

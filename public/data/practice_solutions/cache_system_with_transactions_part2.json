@@ -1,0 +1,1062 @@
+{
+  "problem_title": "Key-Value Cache with Transaction Support - Part 2: Transaction Support",
+  "part_number": 2,
+  "builds_on": "Part 1",
+  "difficulty": "medium",
+  "problem_understanding": {
+    "what_changes": "Part 1 implemented basic SET/GET/DELETE operations on a single HashMap. Part 2 adds **transaction isolation**: changes made after BEGIN are buffered separately and only applied on COMMIT. ROLLBACK discards all buffered changes. This requires a two-layer architecture where we check the transaction buffer first, then fall back to the main cache.",
+    "new_requirements": [
+      "BEGIN starts a new transaction - all subsequent operations are isolated",
+      "COMMIT applies all buffered changes to the main cache permanently",
+      "ROLLBACK discards all buffered changes, restoring pre-transaction state",
+      "GET must return uncommitted changes during an active transaction",
+      "DELETE during transaction must be tracked separately (key 'deleted' \u2260 key 'never existed')"
+    ],
+    "new_constraints": [
+      "COMMIT/ROLLBACK return false if no active transaction",
+      "Deletions in transaction must be distinguishable from non-existent keys",
+      "Transaction isolation - GET sees buffered changes before main cache"
+    ],
+    "key_insight": "Use a **two-layer cache architecture**: a transaction buffer (HashMap) for pending changes and a deletion set (HashSet) to track keys marked for deletion. On GET: check deletion set \u2192 transaction buffer \u2192 main cache. On COMMIT: merge buffer into main cache. On ROLLBACK: simply discard the buffer."
+  },
+  "requirements_coverage": {
+    "checklist": [
+      {
+        "requirement": "BEGIN starts a new transaction",
+        "how_met": "begin() initializes transaction_buffer={} and deleted_keys=set()",
+        "gotchas": [
+          "Calling BEGIN twice might need handling (current impl just resets)"
+        ]
+      },
+      {
+        "requirement": "GET returns uncommitted changes",
+        "how_met": "get() checks deleted_keys first, then transaction_buffer, then main_cache",
+        "gotchas": [
+          "Must check deleted_keys BEFORE transaction_buffer to handle delete-after-set"
+        ]
+      },
+      {
+        "requirement": "DELETE in transaction is reversible",
+        "how_met": "DELETE adds key to deleted_keys set, ROLLBACK clears this set",
+        "gotchas": [
+          "Must also remove from transaction_buffer when deleting"
+        ]
+      },
+      {
+        "requirement": "COMMIT makes changes permanent",
+        "how_met": "commit() copies transaction_buffer to main_cache, removes deleted_keys from main_cache",
+        "gotchas": [
+          "Apply deletions AFTER adds to handle set-then-delete correctly"
+        ]
+      },
+      {
+        "requirement": "ROLLBACK reverts all changes",
+        "how_met": "rollback() simply sets transaction_buffer and deleted_keys to None",
+        "gotchas": [
+          "This O(1) approach works because we never modified main_cache"
+        ]
+      }
+    ],
+    "complexity_targets": [
+      {
+        "operation": "begin",
+        "target": "O(1)",
+        "achieved": "O(1)",
+        "why": "Just initialize empty data structures"
+      },
+      {
+        "operation": "commit",
+        "target": "O(k)",
+        "achieved": "O(k)",
+        "why": "k = number of changes in transaction"
+      },
+      {
+        "operation": "rollback",
+        "target": "O(1)",
+        "achieved": "O(1)",
+        "why": "Just discard references, GC handles cleanup"
+      },
+      {
+        "operation": "set/get/delete in txn",
+        "target": "O(1)",
+        "achieved": "O(1)",
+        "why": "HashMap operations"
+      }
+    ],
+    "non_goals": [
+      "Nested transactions (BEGIN inside BEGIN)",
+      "SAVEPOINT functionality",
+      "Transaction isolation levels (READ COMMITTED, SERIALIZABLE)",
+      "Concurrent transaction support"
+    ]
+  },
+  "assumptions": [
+    "Only one transaction can be active at a time (no nested transactions)",
+    "BEGIN while already in transaction resets the transaction (or could throw - clarify with interviewer)",
+    "All keys and values are strings",
+    "Commands are well-formed (basic validation only)"
+  ],
+  "tradeoffs": [
+    {
+      "decision": "Separate HashMap + HashSet vs Single HashMap with sentinel values",
+      "chosen": "Separate HashMap + HashSet",
+      "why": "Cleaner semantics: HashMap stores values, HashSet tracks deletions. Avoids sentinel value confusion.",
+      "alternative": "Single HashMap with special 'DELETED' sentinel value",
+      "when_to_switch": "If memory is extremely constrained and we can guarantee sentinel never appears as actual value"
+    },
+    {
+      "decision": "Copy-on-commit vs Shadow paging",
+      "chosen": "Copy-on-commit (buffer changes, apply on commit)",
+      "why": "Simple implementation, O(1) rollback, efficient for transactions with few changes",
+      "alternative": "Shadow paging (copy main cache on BEGIN, swap on commit)",
+      "when_to_switch": "If transactions typically modify most keys and we want O(1) commit"
+    }
+  ],
+  "extensibility_notes": {
+    "what_to_keep_stable": [
+      "Public method signatures: set(), get(), delete(), begin(), commit(), rollback()",
+      "Return types: get() returns 'NULL' string for missing keys",
+      "execute() command parsing format"
+    ],
+    "what_to_change": [
+      "Added _transaction_buffer: Optional[Dict[str, str]]",
+      "Added _deleted_keys: Optional[Set[str]]",
+      "Added _is_in_transaction() helper method"
+    ],
+    "interfaces_and_boundaries": "Part 3 (nested transactions) could use a stack of (buffer, deleted_keys) tuples. The current _is_in_transaction() check would become 'stack is not empty'. COMMIT would pop and merge into parent level.",
+    "invariants": [
+      "If _transaction_buffer is None, _deleted_keys is also None (and vice versa)",
+      "A key cannot be in both _transaction_buffer and _deleted_keys simultaneously",
+      "Main cache is never modified during an active transaction"
+    ]
+  },
+  "visual_explanation": {
+    "before_after": "```\nBEFORE (Part 1):                    AFTER (Part 2):\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510                 \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502   main_cache    \u2502                 \u2502        Cache                \u2502\n\u2502  \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510  \u2502                 \u2502  \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\u2502\n\u2502  \u2502 key \u2192 val \u2502  \u2502                 \u2502  \u2502     main_cache          \u2502\u2502\n\u2502  \u2502 key \u2192 val \u2502  \u2502                 \u2502  \u2502  \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510          \u2502\u2502\n\u2502  \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518  \u2502                 \u2502  \u2502  \u2502 key \u2192 val \u2502          \u2502\u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518                 \u2502  \u2502  \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518          \u2502\u2502\n                                    \u2502  \u2502                         \u2502\u2502\n                                    \u2502  \u2502  transaction_buffer     \u2502\u2502\n                                    \u2502  \u2502  \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510          \u2502\u2502\n                                    \u2502  \u2502  \u2502 key \u2192 val \u2502 (pending)\u2502\u2502\n                                    \u2502  \u2502  \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518          \u2502\u2502\n                                    \u2502  \u2502                         \u2502\u2502\n                                    \u2502  \u2502  deleted_keys           \u2502\u2502\n                                    \u2502  \u2502  \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510          \u2502\u2502\n                                    \u2502  \u2502  \u2502 {key}     \u2502 (marked) \u2502\u2502\n                                    \u2502  \u2502  \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518          \u2502\u2502\n                                    \u2502  \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\u2502\n                                    \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n```",
+    "algorithm_flow": "```\n                    GET(key) Flow During Transaction\n                    \u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\n\n                           \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n                           \u2502   GET(key)   \u2502\n                           \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n                                  \u2502\n                    \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u25bc\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n                    \u2502 Is key in deleted_keys?  \u2502\n                    \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n                           YES    \u2502    NO\n                    \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n                    \u2502                           \u2502\n              \u250c\u2500\u2500\u2500\u2500\u2500\u25bc\u2500\u2500\u2500\u2500\u2500\u2510          \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u25bc\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n              \u2502  \"NULL\"   \u2502          \u2502 Is key in txn_buf?  \u2502\n              \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518          \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n                                          YES   \u2502   NO\n                                   \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n                                   \u2502                         \u2502\n                            \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u25bc\u2500\u2500\u2500\u2500\u2500\u2500\u2510       \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u25bc\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n                            \u2502 txn_buf[key]\u2502       \u2502 Is key in main?     \u2502\n                            \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518       \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n                                                       YES   \u2502   NO\n                                                  \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n                                                  \u2502                     \u2502\n                                           \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u25bc\u2500\u2500\u2500\u2500\u2500\u2500\u2510       \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u25bc\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n                                           \u2502 main[key]   \u2502       \u2502  \"NULL\"     \u2502\n                                           \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518       \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n```"
+  },
+  "approaches": [
+    {
+      "name": "Naive Extension - Copy on BEGIN",
+      "description": "Copy entire main_cache when BEGIN is called. Modify the copy during transaction. On COMMIT, swap copy with main. On ROLLBACK, discard copy.",
+      "time_complexity": "O(n) for BEGIN/COMMIT, O(1) for operations",
+      "space_complexity": "O(n) - full copy of cache",
+      "why_not_optimal": "Wastes memory copying entire cache even for small transactions. BEGIN becomes expensive for large caches."
+    },
+    {
+      "name": "Optimal Approach - Transaction Buffer",
+      "description": "Use a separate buffer for changes during transaction. Track deletions in a HashSet. On GET, check buffer first. On COMMIT, merge buffer into main. On ROLLBACK, discard buffer.",
+      "time_complexity": "O(1) for BEGIN/ROLLBACK, O(k) for COMMIT where k=changes",
+      "space_complexity": "O(k) - only store changes, not entire cache",
+      "key_insight": "We only need to track CHANGES, not the entire state. The main cache remains untouched until COMMIT."
+    }
+  ],
+  "optimal_solution": {
+    "explanation_md": "## Two-Layer Transaction Architecture\n\nThe key insight is that we need **write isolation without copying the entire cache**.\n\n### Data Structures\n- **main_cache**: HashMap storing committed key-value pairs\n- **transaction_buffer**: HashMap storing uncommitted changes (None if no transaction)\n- **deleted_keys**: HashSet tracking keys marked for deletion in the transaction\n\n### Why We Need deleted_keys\nConsider this scenario:\n```\nmain_cache = {\"user\": \"Alice\"}\nBEGIN\nDELETE user\nGET user \u2192 should return \"NULL\"\n```\nWithout tracking deletions, GET would fall through to main_cache and return \"Alice\".\n\n### The Flow\n1. **BEGIN**: Initialize empty buffer and deletion set\n2. **SET in txn**: Add to buffer, remove from deleted_keys (undoes prior delete)\n3. **DELETE in txn**: Add to deleted_keys, remove from buffer\n4. **GET in txn**: Check deleted_keys \u2192 buffer \u2192 main_cache\n5. **COMMIT**: Merge buffer into main, remove deleted_keys from main\n6. **ROLLBACK**: Simply discard buffer and deleted_keys (O(1)!)\n\n### Why ROLLBACK is O(1)\nSince we **never touch main_cache during the transaction**, rollback just means discarding our transaction state. Python's garbage collector handles the rest.",
+    "data_structures": [
+      {
+        "structure": "Dict[str, str] - main_cache",
+        "purpose": "Permanent storage for committed key-value pairs"
+      },
+      {
+        "structure": "Optional[Dict[str, str]] - transaction_buffer",
+        "purpose": "Temporary storage for uncommitted changes. None = no active transaction"
+      },
+      {
+        "structure": "Optional[Set[str]] - deleted_keys",
+        "purpose": "Track keys marked for deletion in current transaction"
+      }
+    ],
+    "algorithm_steps": [
+      "Step 1: On BEGIN, initialize transaction_buffer={} and deleted_keys=set()",
+      "Step 2: On SET during txn, add to buffer AND remove from deleted_keys (handles set-after-delete)",
+      "Step 3: On DELETE during txn, add to deleted_keys AND remove from buffer (handles delete-after-set)",
+      "Step 4: On GET during txn, check deleted_keys first (return NULL), then buffer, then main_cache",
+      "Step 5: On COMMIT, copy buffer entries to main_cache, then remove deleted_keys from main_cache",
+      "Step 6: On ROLLBACK, set buffer and deleted_keys to None (discard changes)"
+    ]
+  },
+  "solution_python_lines": [
+    "from typing import List, Optional, Dict, Set",
+    "",
+    "",
+    "class Cache:",
+    "    \"\"\"",
+    "    Key-Value Cache with Transaction Support.",
+    "    ",
+    "    Supports basic cache operations (SET, GET, DELETE) and",
+    "    transaction management (BEGIN, COMMIT, ROLLBACK).",
+    "    ",
+    "    Transaction Isolation:",
+    "    - Changes after BEGIN are buffered until COMMIT",
+    "    - GET returns uncommitted changes within a transaction",
+    "    - ROLLBACK discards all changes since BEGIN",
+    "    \"\"\"",
+    "    ",
+    "    def __init__(self) -> None:",
+    "        \"\"\"Initialize an empty cache with no active transaction.\"\"\"",
+    "        self._main_cache: Dict[str, str] = {}",
+    "        self._transaction_buffer: Optional[Dict[str, str]] = None",
+    "        self._deleted_keys: Optional[Set[str]] = None",
+    "    ",
+    "    def _is_in_transaction(self) -> bool:",
+    "        \"\"\"Check if there's an active transaction.\"\"\"",
+    "        return self._transaction_buffer is not None",
+    "    ",
+    "    # ==================== Part 1 Methods (Modified) ====================",
+    "    ",
+    "    def set(self, key: str, value: str) -> None:",
+    "        \"\"\"",
+    "        Store a key-value pair in the cache.",
+    "        ",
+    "        If in a transaction, the change is buffered until commit.",
+    "        ",
+    "        Args:",
+    "            key: The key to store",
+    "            value: The value to associate with the key",
+    "        \"\"\"",
+    "        if self._is_in_transaction():",
+    "            self._transaction_buffer[key] = value",
+    "            # Remove from deleted_keys if it was marked deleted",
+    "            self._deleted_keys.discard(key)",
+    "        else:",
+    "            self._main_cache[key] = value",
+    "    ",
+    "    def get(self, key: str) -> str:",
+    "        \"\"\"",
+    "        Retrieve a value by key.",
+    "        ",
+    "        Returns 'NULL' if the key doesn't exist.",
+    "        In a transaction, returns uncommitted values.",
+    "        ",
+    "        Priority: deleted_keys -> transaction_buffer -> main_cache",
+    "        ",
+    "        Args:",
+    "            key: The key to look up",
+    "            ",
+    "        Returns:",
+    "            The value or 'NULL' if not found/deleted",
+    "        \"\"\"",
+    "        if self._is_in_transaction():",
+    "            # CRITICAL: Check deleted_keys FIRST",
+    "            if key in self._deleted_keys:",
+    "                return \"NULL\"",
+    "            # Then check transaction buffer",
+    "            if key in self._transaction_buffer:",
+    "                return self._transaction_buffer[key]",
+    "        ",
+    "        # Fall back to main cache",
+    "        return self._main_cache.get(key, \"NULL\")",
+    "    ",
+    "    def delete(self, key: str) -> None:",
+    "        \"\"\"",
+    "        Remove a key-value pair from the cache.",
+    "        ",
+    "        If in a transaction, the deletion is buffered until commit.",
+    "        ",
+    "        Args:",
+    "            key: The key to delete",
+    "        \"\"\"",
+    "        if self._is_in_transaction():",
+    "            # Remove from transaction buffer if set there",
+    "            self._transaction_buffer.pop(key, None)",
+    "            # Mark as deleted (affects main cache lookup)",
+    "            self._deleted_keys.add(key)",
+    "        else:",
+    "            self._main_cache.pop(key, None)",
+    "    ",
+    "    # ==================== Part 2 Methods (New) ====================",
+    "    ",
+    "    def begin(self) -> None:",
+    "        \"\"\"",
+    "        Start a new transaction.",
+    "        ",
+    "        All subsequent operations are buffered until COMMIT or ROLLBACK.",
+    "        Note: Calling BEGIN while already in a transaction resets it.",
+    "        \"\"\"",
+    "        self._transaction_buffer = {}",
+    "        self._deleted_keys = set()",
+    "    ",
+    "    def commit(self) -> bool:",
+    "        \"\"\"",
+    "        Commit all changes in the current transaction.",
+    "        ",
+    "        Applies buffered changes to main cache and clears transaction state.",
+    "        ",
+    "        Returns:",
+    "            True if a transaction was committed, False if no active transaction",
+    "        \"\"\"",
+    "        if not self._is_in_transaction():",
+    "            return False",
+    "        ",
+    "        # Apply all changes from transaction buffer",
+    "        for key, value in self._transaction_buffer.items():",
+    "            self._main_cache[key] = value",
+    "        ",
+    "        # Apply all deletions",
+    "        for key in self._deleted_keys:",
+    "            self._main_cache.pop(key, None)",
+    "        ",
+    "        # Clear transaction state",
+    "        self._transaction_buffer = None",
+    "        self._deleted_keys = None",
+    "        ",
+    "        return True",
+    "    ",
+    "    def rollback(self) -> bool:",
+    "        \"\"\"",
+    "        Rollback all changes in the current transaction.",
+    "        ",
+    "        Discards all buffered changes, restoring pre-transaction state.",
+    "        This is O(1) since we simply discard the buffer references.",
+    "        ",
+    "        Returns:",
+    "            True if a transaction was rolled back, False if no active transaction",
+    "        \"\"\"",
+    "        if not self._is_in_transaction():",
+    "            return False",
+    "        ",
+    "        # Simply discard the transaction buffer - main cache unchanged",
+    "        self._transaction_buffer = None",
+    "        self._deleted_keys = None",
+    "        ",
+    "        return True",
+    "    ",
+    "    # ==================== Command Execution ====================",
+    "    ",
+    "    def execute(self, commands: List[str]) -> List[str]:",
+    "        \"\"\"",
+    "        Execute a list of commands and return results.",
+    "        ",
+    "        Commands: SET <key> <value>, GET <key>, DELETE <key>,",
+    "                  BEGIN, COMMIT, ROLLBACK",
+    "        ",
+    "        Args:",
+    "            commands: List of command strings to execute",
+    "            ",
+    "        Returns:",
+    "            List of results (GET values, COMMIT/ROLLBACK success)",
+    "        \"\"\"",
+    "        results: List[str] = []",
+    "        ",
+    "        for command in commands:",
+    "            parts = command.strip().split()",
+    "            ",
+    "            if not parts:",
+    "                continue",
+    "            ",
+    "            cmd = parts[0].upper()",
+    "            ",
+    "            if cmd == \"SET\" and len(parts) >= 3:",
+    "                key = parts[1]",
+    "                value = \" \".join(parts[2:])  # Handle values with spaces",
+    "                self.set(key, value)",
+    "            ",
+    "            elif cmd == \"GET\" and len(parts) >= 2:",
+    "                key = parts[1]",
+    "                results.append(self.get(key))",
+    "            ",
+    "            elif cmd == \"DELETE\" and len(parts) >= 2:",
+    "                key = parts[1]",
+    "                self.delete(key)",
+    "            ",
+    "            elif cmd == \"BEGIN\":",
+    "                self.begin()",
+    "            ",
+    "            elif cmd == \"COMMIT\":",
+    "                result = self.commit()",
+    "                results.append(str(result).lower())",
+    "            ",
+    "            elif cmd == \"ROLLBACK\":",
+    "                result = self.rollback()",
+    "                results.append(str(result).lower())",
+    "        ",
+    "        return results",
+    "",
+    "",
+    "# ==================== Demo and Testing ====================",
+    "",
+    "def main():",
+    "    \"\"\"Demonstrate cache with transaction support.\"\"\"",
+    "    print(\"=\" * 60)",
+    "    print(\"Key-Value Cache with Transaction Support - Demo\")",
+    "    print(\"=\" * 60)",
+    "    ",
+    "    # Example 1: Rollback scenario",
+    "    print(\"\\n--- Example 1: ROLLBACK Scenario ---\")",
+    "    cache = Cache()",
+    "    commands1 = [",
+    "        \"SET name Alice\",",
+    "        \"BEGIN\",",
+    "        \"SET name Bob\",",
+    "        \"GET name\",",
+    "        \"ROLLBACK\",",
+    "        \"GET name\"",
+    "    ]",
+    "    print(f\"Commands: {commands1}\")",
+    "    results1 = cache.execute(commands1)",
+    "    print(f\"Results:  {results1}\")",
+    "    print(f\"Expected: ['Bob', 'true', 'Alice']\")",
+    "    ",
+    "    # Example 2: Commit scenario",
+    "    print(\"\\n--- Example 2: COMMIT Scenario ---\")",
+    "    cache = Cache()",
+    "    commands2 = [",
+    "        \"SET x 1\",",
+    "        \"BEGIN\",",
+    "        \"SET x 2\",",
+    "        \"SET y 3\",",
+    "        \"DELETE x\",",
+    "        \"COMMIT\",",
+    "        \"GET x\",",
+    "        \"GET y\"",
+    "    ]",
+    "    print(f\"Commands: {commands2}\")",
+    "    results2 = cache.execute(commands2)",
+    "    print(f\"Results:  {results2}\")",
+    "    print(f\"Expected: ['true', 'NULL', '3']\")",
+    "    ",
+    "    # Example 3: Delete in transaction then rollback",
+    "    print(\"\\n--- Example 3: Delete then Rollback ---\")",
+    "    cache = Cache()",
+    "    commands3 = [",
+    "        \"SET user Alice\",",
+    "        \"BEGIN\",",
+    "        \"DELETE user\",",
+    "        \"GET user\",",
+    "        \"ROLLBACK\",",
+    "        \"GET user\"",
+    "    ]",
+    "    print(f\"Commands: {commands3}\")",
+    "    results3 = cache.execute(commands3)",
+    "    print(f\"Results:  {results3}\")",
+    "    print(f\"Expected: ['NULL', 'true', 'Alice']\")",
+    "    ",
+    "    # Example 4: Set then delete in same transaction",
+    "    print(\"\\n--- Example 4: Set then Delete in Transaction ---\")",
+    "    cache = Cache()",
+    "    commands4 = [",
+    "        \"BEGIN\",",
+    "        \"SET temp value\",",
+    "        \"GET temp\",",
+    "        \"DELETE temp\",",
+    "        \"GET temp\",",
+    "        \"COMMIT\",",
+    "        \"GET temp\"",
+    "    ]",
+    "    print(f\"Commands: {commands4}\")",
+    "    results4 = cache.execute(commands4)",
+    "    print(f\"Results:  {results4}\")",
+    "    print(f\"Expected: ['value', 'NULL', 'true', 'NULL']\")",
+    "    ",
+    "    # Example 5: No active transaction",
+    "    print(\"\\n--- Example 5: COMMIT/ROLLBACK without Transaction ---\")",
+    "    cache = Cache()",
+    "    commands5 = [\"COMMIT\", \"ROLLBACK\"]",
+    "    print(f\"Commands: {commands5}\")",
+    "    results5 = cache.execute(commands5)",
+    "    print(f\"Results:  {results5}\")",
+    "    print(f\"Expected: ['false', 'false']\")",
+    "    ",
+    "    print(\"\\n\" + \"=\" * 60)",
+    "    print(\"All examples completed!\")",
+    "    print(\"=\" * 60)",
+    "",
+    "",
+    "if __name__ == \"__main__\":",
+    "    main()"
+  ],
+  "solution_java_lines": [
+    "import java.util.*;",
+    "",
+    "/**",
+    " * Key-Value Cache with Transaction Support.",
+    " * ",
+    " * Supports basic cache operations (SET, GET, DELETE) and",
+    " * transaction management (BEGIN, COMMIT, ROLLBACK).",
+    " */",
+    "public class Cache {",
+    "    private Map<String, String> mainCache;",
+    "    private Map<String, String> transactionBuffer;",
+    "    private Set<String> deletedKeys;",
+    "    ",
+    "    public Cache() {",
+    "        this.mainCache = new HashMap<>();",
+    "        this.transactionBuffer = null;",
+    "        this.deletedKeys = null;",
+    "    }",
+    "    ",
+    "    private boolean isInTransaction() {",
+    "        return transactionBuffer != null;",
+    "    }",
+    "    ",
+    "    // ==================== Part 1 Methods (Modified) ====================",
+    "    ",
+    "    /**",
+    "     * Store a key-value pair in the cache.",
+    "     * If in a transaction, the change is buffered until commit.",
+    "     */",
+    "    public void set(String key, String value) {",
+    "        if (isInTransaction()) {",
+    "            transactionBuffer.put(key, value);",
+    "            deletedKeys.remove(key);",
+    "        } else {",
+    "            mainCache.put(key, value);",
+    "        }",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Retrieve a value by key.",
+    "     * Returns \"NULL\" if the key doesn't exist.",
+    "     * In a transaction, returns uncommitted values.",
+    "     */",
+    "    public String get(String key) {",
+    "        if (isInTransaction()) {",
+    "            // Check deleted_keys FIRST",
+    "            if (deletedKeys.contains(key)) {",
+    "                return \"NULL\";",
+    "            }",
+    "            // Then check transaction buffer",
+    "            if (transactionBuffer.containsKey(key)) {",
+    "                return transactionBuffer.get(key);",
+    "            }",
+    "        }",
+    "        // Fall back to main cache",
+    "        return mainCache.getOrDefault(key, \"NULL\");",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Remove a key-value pair from the cache.",
+    "     * If in a transaction, the deletion is buffered until commit.",
+    "     */",
+    "    public void delete(String key) {",
+    "        if (isInTransaction()) {",
+    "            transactionBuffer.remove(key);",
+    "            deletedKeys.add(key);",
+    "        } else {",
+    "            mainCache.remove(key);",
+    "        }",
+    "    }",
+    "    ",
+    "    // ==================== Part 2 Methods (New) ====================",
+    "    ",
+    "    /**",
+    "     * Start a new transaction.",
+    "     * All subsequent operations are buffered until COMMIT or ROLLBACK.",
+    "     */",
+    "    public void begin() {",
+    "        transactionBuffer = new HashMap<>();",
+    "        deletedKeys = new HashSet<>();",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Commit all changes in the current transaction.",
+    "     * @return True if committed, false if no active transaction",
+    "     */",
+    "    public boolean commit() {",
+    "        if (!isInTransaction()) {",
+    "            return false;",
+    "        }",
+    "        ",
+    "        // Apply all changes from transaction buffer",
+    "        mainCache.putAll(transactionBuffer);",
+    "        ",
+    "        // Apply all deletions",
+    "        for (String key : deletedKeys) {",
+    "            mainCache.remove(key);",
+    "        }",
+    "        ",
+    "        // Clear transaction state",
+    "        transactionBuffer = null;",
+    "        deletedKeys = null;",
+    "        ",
+    "        return true;",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Rollback all changes in the current transaction.",
+    "     * @return True if rolled back, false if no active transaction",
+    "     */",
+    "    public boolean rollback() {",
+    "        if (!isInTransaction()) {",
+    "            return false;",
+    "        }",
+    "        ",
+    "        // Simply discard the transaction buffer",
+    "        transactionBuffer = null;",
+    "        deletedKeys = null;",
+    "        ",
+    "        return true;",
+    "    }",
+    "    ",
+    "    // ==================== Command Execution ====================",
+    "    ",
+    "    /**",
+    "     * Execute a list of commands and return results.",
+    "     */",
+    "    public List<String> execute(List<String> commands) {",
+    "        List<String> results = new ArrayList<>();",
+    "        ",
+    "        for (String command : commands) {",
+    "            String[] parts = command.trim().split(\" \", 3);",
+    "            if (parts.length == 0) continue;",
+    "            ",
+    "            String cmd = parts[0].toUpperCase();",
+    "            ",
+    "            switch (cmd) {",
+    "                case \"SET\":",
+    "                    if (parts.length >= 3) {",
+    "                        set(parts[1], parts[2]);",
+    "                    }",
+    "                    break;",
+    "                case \"GET\":",
+    "                    if (parts.length >= 2) {",
+    "                        results.add(get(parts[1]));",
+    "                    }",
+    "                    break;",
+    "                case \"DELETE\":",
+    "                    if (parts.length >= 2) {",
+    "                        delete(parts[1]);",
+    "                    }",
+    "                    break;",
+    "                case \"BEGIN\":",
+    "                    begin();",
+    "                    break;",
+    "                case \"COMMIT\":",
+    "                    results.add(String.valueOf(commit()));",
+    "                    break;",
+    "                case \"ROLLBACK\":",
+    "                    results.add(String.valueOf(rollback()));",
+    "                    break;",
+    "            }",
+    "        }",
+    "        ",
+    "        return results;",
+    "    }",
+    "    ",
+    "    // ==================== Demo ====================",
+    "    ",
+    "    public static void main(String[] args) {",
+    "        System.out.println(\"=\".repeat(60));",
+    "        System.out.println(\"Key-Value Cache with Transaction Support - Demo\");",
+    "        System.out.println(\"=\".repeat(60));",
+    "        ",
+    "        // Example 1: Rollback",
+    "        System.out.println(\"\\n--- Example 1: ROLLBACK ---\");",
+    "        Cache cache1 = new Cache();",
+    "        List<String> commands1 = Arrays.asList(",
+    "            \"SET name Alice\", \"BEGIN\", \"SET name Bob\",",
+    "            \"GET name\", \"ROLLBACK\", \"GET name\"",
+    "        );",
+    "        System.out.println(\"Commands: \" + commands1);",
+    "        System.out.println(\"Results:  \" + cache1.execute(commands1));",
+    "        System.out.println(\"Expected: [Bob, true, Alice]\");",
+    "        ",
+    "        // Example 2: Commit",
+    "        System.out.println(\"\\n--- Example 2: COMMIT ---\");",
+    "        Cache cache2 = new Cache();",
+    "        List<String> commands2 = Arrays.asList(",
+    "            \"SET x 1\", \"BEGIN\", \"SET x 2\", \"SET y 3\",",
+    "            \"DELETE x\", \"COMMIT\", \"GET x\", \"GET y\"",
+    "        );",
+    "        System.out.println(\"Commands: \" + commands2);",
+    "        System.out.println(\"Results:  \" + cache2.execute(commands2));",
+    "        System.out.println(\"Expected: [true, NULL, 3]\");",
+    "        ",
+    "        System.out.println(\"\\n\" + \"=\".repeat(60));",
+    "    }",
+    "}"
+  ],
+  "code_walkthrough": [
+    {
+      "lines": "1-14",
+      "explanation": "Imports and class docstring explaining transaction support"
+    },
+    {
+      "lines": "16-21",
+      "explanation": "Constructor initializes main_cache (permanent), transaction_buffer and deleted_keys (both None when no transaction)"
+    },
+    {
+      "lines": "23-25",
+      "explanation": "_is_in_transaction() helper - returns True if transaction_buffer is not None"
+    },
+    {
+      "lines": "29-41",
+      "explanation": "set() method: If in transaction, add to buffer AND remove from deleted_keys (handles set-after-delete). Otherwise, add directly to main_cache"
+    },
+    {
+      "lines": "43-62",
+      "explanation": "get() method: Priority order is deleted_keys \u2192 transaction_buffer \u2192 main_cache. This ensures deleted keys return NULL even if they exist in main"
+    },
+    {
+      "lines": "64-77",
+      "explanation": "delete() method: If in transaction, remove from buffer AND add to deleted_keys. Otherwise, remove from main_cache"
+    },
+    {
+      "lines": "81-89",
+      "explanation": "begin() - Initialize empty transaction_buffer and deleted_keys set"
+    },
+    {
+      "lines": "91-112",
+      "explanation": "commit() - Return false if no transaction. Otherwise, copy buffer to main, remove deleted keys from main, clear transaction state"
+    },
+    {
+      "lines": "114-130",
+      "explanation": "rollback() - Return false if no transaction. Otherwise, simply set buffer and deleted_keys to None (O(1) discard)"
+    },
+    {
+      "lines": "134-172",
+      "explanation": "execute() - Parse commands and dispatch to appropriate methods. Return results for GET/COMMIT/ROLLBACK"
+    }
+  ],
+  "complexity_analysis": {
+    "time": {
+      "new_methods": {
+        "begin": {
+          "complexity": "O(1)",
+          "explanation": "Just initialize two empty data structures"
+        },
+        "commit": {
+          "complexity": "O(k)",
+          "explanation": "k = number of changes. Iterate through buffer and deleted_keys"
+        },
+        "rollback": {
+          "complexity": "O(1)",
+          "explanation": "Just set references to None, GC handles cleanup"
+        },
+        "set_in_txn": {
+          "complexity": "O(1)",
+          "explanation": "HashMap put + set discard"
+        },
+        "get_in_txn": {
+          "complexity": "O(1)",
+          "explanation": "Up to 3 HashMap lookups, all O(1)"
+        },
+        "delete_in_txn": {
+          "complexity": "O(1)",
+          "explanation": "HashMap remove + set add"
+        }
+      },
+      "overall_change": "No degradation from Part 1. All operations remain O(1) except COMMIT which is O(k) where k = transaction size."
+    },
+    "space": {
+      "additional_space": "O(k) where k = number of changes in transaction",
+      "explanation": "transaction_buffer stores at most k key-value pairs. deleted_keys stores at most k keys. This is optimal - we only store what changed, not the entire cache."
+    }
+  },
+  "dry_run": {
+    "example_input": "[\"SET name Alice\", \"BEGIN\", \"SET name Bob\", \"GET name\", \"ROLLBACK\", \"GET name\"]",
+    "steps": [
+      {
+        "step": 1,
+        "action": "SET name Alice",
+        "state": "main={name:Alice}, buffer=None, deleted=None",
+        "explanation": "No transaction, add directly to main_cache"
+      },
+      {
+        "step": 2,
+        "action": "BEGIN",
+        "state": "main={name:Alice}, buffer={}, deleted={}",
+        "explanation": "Initialize empty transaction buffer and deleted_keys set"
+      },
+      {
+        "step": 3,
+        "action": "SET name Bob",
+        "state": "main={name:Alice}, buffer={name:Bob}, deleted={}",
+        "explanation": "In transaction, add to buffer. Main unchanged."
+      },
+      {
+        "step": 4,
+        "action": "GET name",
+        "state": "same",
+        "explanation": "Check deleted? No. Check buffer? Yes, name:Bob. Return 'Bob'"
+      },
+      {
+        "step": 5,
+        "action": "ROLLBACK",
+        "state": "main={name:Alice}, buffer=None, deleted=None",
+        "explanation": "Discard buffer and deleted_keys. Main unchanged. Return 'true'"
+      },
+      {
+        "step": 6,
+        "action": "GET name",
+        "state": "same",
+        "explanation": "No transaction. Check main_cache. Return 'Alice'"
+      }
+    ],
+    "final_output": "['Bob', 'true', 'Alice']"
+  },
+  "debugging_playbook": {
+    "fast_sanity_checks": [
+      "Single SET/GET without transaction should work exactly like Part 1",
+      "BEGIN followed by immediate ROLLBACK should be no-op",
+      "COMMIT/ROLLBACK without BEGIN should return 'false'"
+    ],
+    "likely_bugs": [
+      "Forgetting to check deleted_keys BEFORE transaction_buffer in get()",
+      "Not removing from deleted_keys when setting a key in transaction",
+      "Not removing from transaction_buffer when deleting a key",
+      "Applying deletions before additions in commit (order matters for set-then-delete)"
+    ],
+    "recommended_logs_or_asserts": [
+      "assert (self._transaction_buffer is None) == (self._deleted_keys is None)",
+      "Log state after each operation: f'After {cmd}: main={self._main_cache}, buffer={self._transaction_buffer}, deleted={self._deleted_keys}'"
+    ],
+    "how_to_localize": "1. Print state after each command. 2. Identify which command caused divergence. 3. Check if it's a get/set/delete bug or a commit/rollback bug. 4. Trace through the specific method."
+  },
+  "edge_cases": [
+    {
+      "case": "Delete key that doesn't exist (in transaction)",
+      "handling": "Add to deleted_keys anyway. GET will return NULL. COMMIT removes nothing (pop is safe)",
+      "gotcha": "Don't check existence before marking deleted"
+    },
+    {
+      "case": "Set then delete same key in transaction",
+      "handling": "Key ends up in deleted_keys only. Transaction buffer has it removed.",
+      "gotcha": "Order of operations: delete removes from buffer AND adds to deleted_keys"
+    },
+    {
+      "case": "Delete then set same key in transaction",
+      "handling": "Key ends up in transaction_buffer. deleted_keys has it removed.",
+      "gotcha": "Order of operations: set removes from deleted_keys"
+    },
+    {
+      "case": "COMMIT with no changes",
+      "handling": "Still returns true (transaction existed, just empty)",
+      "gotcha": "Empty transaction is still a valid transaction"
+    },
+    {
+      "case": "Multiple BEGINs",
+      "handling": "Current impl resets transaction (loses previous uncommitted changes)",
+      "gotcha": "Might want to throw error or support nested transactions in Part 3"
+    },
+    {
+      "case": "GET key from main when buffer exists but doesn't have key",
+      "handling": "Falls through to main_cache correctly",
+      "gotcha": "Must not return NULL just because key isn't in buffer"
+    }
+  ],
+  "test_cases": [
+    {
+      "name": "Basic rollback",
+      "input": "[\"SET name Alice\", \"BEGIN\", \"SET name Bob\", \"GET name\", \"ROLLBACK\", \"GET name\"]",
+      "expected": "['Bob', 'true', 'Alice']",
+      "explanation": "Uncommitted change visible during txn, reverted on rollback"
+    },
+    {
+      "name": "Commit with delete",
+      "input": "[\"SET x 1\", \"BEGIN\", \"SET x 2\", \"SET y 3\", \"DELETE x\", \"COMMIT\", \"GET x\", \"GET y\"]",
+      "expected": "['true', 'NULL', '3']",
+      "explanation": "After commit: x deleted, y added"
+    },
+    {
+      "name": "Delete then rollback",
+      "input": "[\"SET user Alice\", \"BEGIN\", \"DELETE user\", \"GET user\", \"ROLLBACK\", \"GET user\"]",
+      "expected": "['NULL', 'true', 'Alice']",
+      "explanation": "Deleted key returns NULL in txn, restored after rollback"
+    },
+    {
+      "name": "No active transaction",
+      "input": "[\"COMMIT\", \"ROLLBACK\"]",
+      "expected": "['false', 'false']",
+      "explanation": "COMMIT/ROLLBACK fail without active transaction"
+    },
+    {
+      "name": "Set then delete in same transaction",
+      "input": "[\"BEGIN\", \"SET temp value\", \"GET temp\", \"DELETE temp\", \"GET temp\", \"COMMIT\", \"GET temp\"]",
+      "expected": "['value', 'NULL', 'true', 'NULL']",
+      "explanation": "Key visible after set, gone after delete, remains gone after commit"
+    }
+  ],
+  "common_mistakes": [
+    {
+      "mistake": "Checking transaction_buffer before deleted_keys in get()",
+      "why_wrong": "If user does SET x 5 then DELETE x in same transaction, x is in buffer with value 5 AND in deleted_keys. Should return NULL, not 5.",
+      "correct_approach": "Always check deleted_keys FIRST",
+      "code_example_wrong": "if key in self._transaction_buffer: return self._transaction_buffer[key]  # WRONG",
+      "code_example_correct": "if key in self._deleted_keys: return 'NULL'  # Check deletions first!"
+    },
+    {
+      "mistake": "Forgetting to remove from deleted_keys on SET",
+      "why_wrong": "If user does DELETE x then SET x 5, the key should be retrievable. But if you don't remove from deleted_keys, GET will return NULL.",
+      "correct_approach": "In set(), always call deleted_keys.discard(key)",
+      "code_example_wrong": "self._transaction_buffer[key] = value  # Missing discard",
+      "code_example_correct": "self._transaction_buffer[key] = value; self._deleted_keys.discard(key)"
+    },
+    {
+      "mistake": "Modifying main_cache during transaction",
+      "why_wrong": "Makes rollback O(n) because you need to restore original values. Also violates isolation.",
+      "correct_approach": "Only modify main_cache in commit()",
+      "code_example_wrong": "if in_txn: self._main_cache[key] = value  # WRONG - modifying main",
+      "code_example_correct": "if in_txn: self._transaction_buffer[key] = value  # Correct - buffer only"
+    }
+  ],
+  "interview_tips": {
+    "how_to_present": "Start by explaining the two-layer architecture. Draw the diagram showing main_cache vs transaction_buffer. Explain WHY we need deleted_keys (the subtle case of deleting a key that exists in main).",
+    "what_to_mention": [
+      "O(1) rollback is possible because we never touch main_cache during transaction",
+      "The order of checks in get() is critical: deleted_keys \u2192 buffer \u2192 main",
+      "This pattern is similar to how databases implement MVCC",
+      "Could extend to nested transactions using a stack of buffers"
+    ],
+    "time_allocation": "15-20 minutes. Spend 3-4 min explaining approach, 10-12 min coding, 3-4 min testing",
+    "if_stuck": [
+      "Think about what happens if you delete a key that exists in main - how does GET know?",
+      "What data structure tracks 'marked for deletion'?",
+      "How do you make ROLLBACK O(1)? (Hint: don't modify main cache during transaction)"
+    ]
+  },
+  "connection_to_next_part": "Part 3 likely adds **nested transactions** (BEGIN inside BEGIN). The extension is elegant: replace single buffer/deleted_keys with a STACK of (buffer, deleted_keys) tuples. On nested BEGIN, push new layer. On COMMIT, merge into parent layer. On ROLLBACK, just pop. This architecture supports it naturally.",
+  "communication_script": {
+    "transition_from_previous": "Great, so Part 1's basic cache is working. For Part 2, I need to add transaction support with BEGIN/COMMIT/ROLLBACK. The key insight is to use a **two-layer architecture** where changes are buffered until commit.",
+    "explaining_changes": "The main change is adding a transaction_buffer HashMap and a deleted_keys HashSet. During a transaction, SET/DELETE modify these instead of main_cache. GET checks the buffer first, then falls through to main. COMMIT merges the buffer, ROLLBACK just discards it.",
+    "while_extending_code": [
+      "I'm adding transaction_buffer to store pending changes...",
+      "I need deleted_keys because 'deleted' is different from 'never existed'...",
+      "In get(), the order matters: check deleted first, then buffer, then main...",
+      "Rollback is O(1) because I just discard the buffer references..."
+    ],
+    "after_completing": "This now handles Part 2. BEGIN is O(1), COMMIT is O(k) where k is the transaction size, and ROLLBACK is O(1). The architecture could extend to nested transactions by using a stack. Ready for Part 3?"
+  },
+  "time_milestones": {
+    "time_budget": "15-20 minutes for this part",
+    "by_3_min": "Understand transaction semantics, identify need for buffer + deleted_keys",
+    "by_7_min": "Explain two-layer approach, start modifying set/get/delete",
+    "by_12_min": "Implement begin/commit/rollback",
+    "by_17_min": "Test with examples, handle edge cases",
+    "warning_signs": "If still unclear on why deleted_keys is needed at 5 min, ask for clarification. If commit logic is confusing, trace through an example."
+  },
+  "recovery_strategies": {
+    "if_part_builds_wrong": "If Part 1's get/set/delete have bugs, fix them first. The transaction layer builds on correct base operations. Say: 'Let me verify the base operations work before adding transactions.'",
+    "if_new_requirement_unclear": "Ask: 'When a key is deleted in a transaction, should GET return NULL or throw an error?' or 'What should happen if BEGIN is called while already in a transaction?'",
+    "if_running_behind": "Focus on: 1) BEGIN initializing structures, 2) get() checking buffer first, 3) commit() copying buffer to main. Skip edge cases if needed, but mention them."
+  },
+  "signal_points": {
+    "wow_factors_for_followup": [
+      "Explaining why ROLLBACK is O(1) (we never touched main_cache)",
+      "Recognizing this is similar to database transaction logs / MVCC",
+      "Proactively mentioning extension to nested transactions with a stack",
+      "Discussing the order of operations in commit() (adds before deletes)",
+      "Mentioning that this pattern is used in React's batch updates"
+    ]
+  },
+  "pattern_recognition": {
+    "pattern": "Command Pattern + Memento Pattern (Transaction Buffer)",
+    "indicators": [
+      "Need to group operations and apply/revert as a unit",
+      "Isolation of changes until explicitly committed",
+      "O(1) rollback requirement"
+    ],
+    "similar_problems": [
+      "LC 1472 - Design Browser History (undo/redo)",
+      "LC 705/706 - Design HashSet/HashMap (base structure)",
+      "Database transaction implementation",
+      "Git staging area concept"
+    ],
+    "template": "```\\nclass TransactionalStore:\\n    def __init__(self):\\n        self.main = {}\\n        self.buffer = None  # None = no txn\\n        self.deleted = None\\n    \\n    def begin(self): self.buffer, self.deleted = {}, set()\\n    def commit(self): merge buffer\u2192main, remove deleted, clear state\\n    def rollback(self): self.buffer = self.deleted = None\\n```"
+  },
+  "thinking_process": [
+    {
+      "step": 1,
+      "thought": "When I see 'transaction' and 'rollback', I immediately think of isolation - changes shouldn't affect main state until committed.",
+      "why": "This is the fundamental property of transactions."
+    },
+    {
+      "step": 2,
+      "thought": "For O(1) rollback, I can't modify the main cache during transaction.",
+      "why": "Reverting n changes would be O(n). Instead, buffer changes."
+    },
+    {
+      "step": 3,
+      "thought": "Delete is tricky - how do I distinguish 'deleted in transaction' from 'never existed'?",
+      "why": "If I just remove from buffer, GET would fall through to main and return the old value."
+    },
+    {
+      "step": 4,
+      "thought": "I need a separate deleted_keys set to mark keys as deleted.",
+      "why": "This lets GET return NULL for deleted keys even if they exist in main."
+    },
+    {
+      "step": 5,
+      "thought": "Order matters in GET: check deleted first, then buffer, then main.",
+      "why": "Handles the case of SET then DELETE in same transaction correctly."
+    }
+  ],
+  "interviewer_perspective": {
+    "what_they_evaluate": [
+      "Can you extend existing code cleanly without rewriting?",
+      "Do you understand transaction isolation semantics?",
+      "Can you identify the deleted_keys edge case?",
+      "Is your solution efficient (O(1) rollback)?"
+    ],
+    "bonus_points": [
+      "Explaining the two-layer architecture with a diagram",
+      "Mentioning MVCC or database transaction logs",
+      "Proactively discussing nested transaction extension",
+      "Writing clean, readable code with good method decomposition"
+    ],
+    "red_flags": [
+      "Copying entire cache on BEGIN (inefficient)",
+      "Not handling the delete-from-main case correctly",
+      "Modifying main cache during transaction (breaks rollback)",
+      "Not understanding why deleted_keys is needed"
+    ]
+  },
+  "ai_copilot_tips": {
+    "what_to_do": [
+      "Use AI for the execute() command parsing boilerplate",
+      "Let it suggest the type hints for Optional[Dict]",
+      "Ask it to generate test cases"
+    ],
+    "what_not_to_do": [
+      "Don't let AI design the two-layer architecture - explain it yourself",
+      "Understand why deleted_keys is separate from transaction_buffer",
+      "Review the order of checks in get() carefully"
+    ]
+  },
+  "red_flags_to_avoid": {
+    "behavioral": [
+      "Not asking about edge cases (nested BEGIN, COMMIT without BEGIN)",
+      "Jumping to code without explaining the buffer architecture"
+    ],
+    "technical": [
+      "Using a sentinel value like 'DELETED' instead of a separate set",
+      "Forgetting to handle the set-then-delete case",
+      "Making rollback O(n) by modifying main cache during transaction"
+    ],
+    "communication": [
+      "Not explaining why you need two data structures for transactions",
+      "Forgetting to trace through an example with your solution"
+    ]
+  },
+  "final_checklist": {
+    "before_saying_done": [
+      "Does get() check deleted_keys BEFORE transaction_buffer?",
+      "Does set() remove from deleted_keys?",
+      "Does delete() remove from transaction_buffer AND add to deleted_keys?",
+      "Is rollback() truly O(1)?",
+      "Did I test with a delete-then-rollback example?"
+    ],
+    "quick_code_review": [
+      "Type hints on all new methods",
+      "Consistent use of _is_in_transaction() helper",
+      "No unused imports",
+      "Docstrings explaining transaction behavior"
+    ]
+  },
+  "production_considerations": {
+    "what_i_would_add": [
+      "Logging for transaction begin/commit/rollback events",
+      "Metrics: transaction duration, buffer size at commit",
+      "Transaction timeout to prevent indefinite locks",
+      "Thread safety if multiple threads access the cache"
+    ],
+    "why_not_in_interview": "Focus on core algorithm and correctness. Mention these verbally to show production awareness.",
+    "how_to_mention": "Say: 'In production, I'd add transaction timeouts and logging. I'd also need to consider thread safety if this cache is shared.'"
+  },
+  "generated_at": "2026-01-18T18:18:33.421763",
+  "_meta": {
+    "problem_id": "cache_system_with_transactions",
+    "part_number": 2,
+    "model": "claude-opus-4-5-20251101"
+  }
+}

@@ -1,0 +1,991 @@
+{
+  "problem_title": "Delivery Cost Tracking System - Part 4: Dynamic Rate Updates",
+  "part_number": 4,
+  "builds_on": "Part 3",
+  "difficulty": "medium",
+  "problem_understanding": {
+    "what_changes": "Part 4 introduces the ability to dynamically update a driver's hourly rate at any point in time. Instead of storing a single rate per driver, we now need to maintain a **rate history** that tracks when each rate became effective. This fundamentally changes how we look up rates when calculating delivery costs - we must find the rate that was in effect at the delivery's start time.",
+    "new_requirements": [
+      "Support updateDriverRate(driverId, newRate, effectiveTime) operation",
+      "Maintain rate history per driver with timestamps",
+      "Look up correct historical rate when adding deliveries",
+      "Handle multiple rate changes for the same driver"
+    ],
+    "new_constraints": [
+      "Rate lookups must be efficient O(log r) where r = number of rate changes",
+      "Must handle rates that become effective at any timestamp",
+      "Deliveries use the rate effective at their start time"
+    ],
+    "key_insight": "Store rate history as a sorted map of (timestamp \u2192 rate) pairs. When calculating delivery cost, use floor query to find the most recent rate change at or before the delivery's start time. TreeMap in Java or SortedDict/bisect in Python enables O(log r) lookups."
+  },
+  "requirements_coverage": {
+    "checklist": [
+      {
+        "requirement": "Update driver rate with effective timestamp",
+        "how_met": "updateDriverRate() adds new entry to TreeMap/SortedDict keyed by effectiveTime",
+        "gotchas": [
+          "Don't replace the entire rate history, append to it"
+        ]
+      },
+      {
+        "requirement": "Deliveries use rate at start time",
+        "how_met": "_get_rate_at_time() uses floorEntry/bisect to find applicable rate",
+        "gotchas": [
+          "Off-by-one error in floor lookup",
+          "Timestamp before first rate entry"
+        ]
+      },
+      {
+        "requirement": "Maintain running total correctly",
+        "how_met": "addDelivery() looks up historical rate before adding to total",
+        "gotchas": [
+          "Using current rate instead of historical rate"
+        ]
+      }
+    ],
+    "complexity_targets": [
+      {
+        "operation": "updateDriverRate",
+        "target": "O(log r)",
+        "achieved": "O(log r)",
+        "why": "TreeMap.put() is O(log n)"
+      },
+      {
+        "operation": "rate lookup",
+        "target": "O(log r)",
+        "achieved": "O(log r)",
+        "why": "TreeMap.floorEntry() is O(log n)"
+      },
+      {
+        "operation": "addDelivery",
+        "target": "O(log r)",
+        "achieved": "O(log r)",
+        "why": "Dominated by rate lookup"
+      }
+    ],
+    "non_goals": [
+      "Recalculating past deliveries when rate changes retroactively",
+      "Pro-rated cost calculation when rate changes mid-delivery",
+      "Rate change notifications or events"
+    ]
+  },
+  "assumptions": [
+    "Rate at delivery START time is used for the entire delivery (not pro-rated)",
+    "effectiveTime in updateDriverRate can be any timestamp (past, present, or future)",
+    "Rate updates don't retroactively change already-calculated delivery costs",
+    "Initial addDriver rate is effective from timestamp 0",
+    "Ask interviewer: Should retroactive rate changes affect unpaid amounts?"
+  ],
+  "tradeoffs": [
+    {
+      "decision": "TreeMap vs List with binary search",
+      "chosen": "TreeMap (SortedDict in Python)",
+      "why": "Built-in floorEntry() provides clean O(log n) lookup without manual binary search",
+      "alternative": "List with bisect module",
+      "when_to_switch": "If you need to support rate deletions or complex range queries"
+    },
+    {
+      "decision": "Rate at start time vs pro-rated calculation",
+      "chosen": "Rate at start time only",
+      "why": "Simpler implementation, matches most real-world payroll systems",
+      "alternative": "Pro-rated based on rate changes during delivery",
+      "when_to_switch": "If business requires precise per-second billing"
+    },
+    {
+      "decision": "Immutable vs mutable past calculations",
+      "chosen": "Immutable - past deliveries keep their calculated cost",
+      "why": "Simpler, avoids recalculation complexity, matches accounting practices",
+      "alternative": "Recalculate all on rate change",
+      "when_to_switch": "If audit/compliance requires retroactive corrections"
+    }
+  ],
+  "extensibility_notes": {
+    "what_to_keep_stable": [
+      "Public method signatures from Parts 1-3",
+      "Return types and rounding behavior",
+      "Core invariant: total_cost = sum of all delivery costs"
+    ],
+    "what_to_change": [
+      "Internal driver storage: single rate \u2192 rate history map",
+      "Rate lookup: direct access \u2192 floor query on history"
+    ],
+    "interfaces_and_boundaries": "The rate lookup is encapsulated in _get_rate_at_time() helper. Future parts can extend rate logic (e.g., rate caps, bonuses) by modifying only this method.",
+    "invariants": [
+      "Every driver has at least one rate entry (from addDriver)",
+      "Rate history timestamps are unique per driver",
+      "Rate lookup always returns a valid Decimal/BigDecimal"
+    ]
+  },
+  "visual_explanation": {
+    "before_after": "```\nBEFORE (Part 3):                          AFTER (Part 4):\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500                     \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n_drivers:                                 _driver_rates:\n  Driver 1 \u2192 $20/hr                         Driver 1 \u2192 TreeMap:\n  Driver 2 \u2192 $25/hr                                     0    \u2192 $20/hr\n                                                        1800 \u2192 $25/hr\n                                                        5000 \u2192 $30/hr\n                                            Driver 2 \u2192 TreeMap:\n                                                        0    \u2192 $25/hr\n\nLookup: O(1) direct access               Lookup: O(log r) floor query\n```",
+    "algorithm_flow": "```\nupdateDriverRate(driver_id=1, new_rate=$30, effective_time=3600):\n\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502  STEP 1: Find driver's rate history                         \u2502\n\u2502  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500            \u2502\n\u2502  rate_history = _driver_rates[1]                            \u2502\n\u2502  Current: {0: $20}                                          \u2502\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502  STEP 2: Insert new rate at effective time                  \u2502\n\u2502  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500            \u2502\n\u2502  rate_history[3600] = $30                                   \u2502\n\u2502  After: {0: $20, 3600: $30}                                 \u2502\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502  STEP 3: Later delivery lookup                              \u2502\n\u2502  \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500            \u2502\n\u2502  addDelivery(1, start=4000, end=5000)                       \u2502\n\u2502  rate = floorEntry(4000) \u2192 finds 3600: $30                  \u2502\n\u2502  cost = $30 \u00d7 (5000-4000)/3600 = $8.33                      \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n```"
+  },
+  "approaches": [
+    {
+      "name": "Naive Extension",
+      "description": "Add a second field for 'new rate' and a timestamp. When looking up rate, check if delivery is after the change timestamp.",
+      "time_complexity": "O(n) where n = rate changes, need to scan all changes",
+      "space_complexity": "O(n) storing rate change list",
+      "why_not_optimal": "Doesn't scale with multiple rate changes. Linear scan becomes expensive. No clean way to handle arbitrary number of rate changes."
+    },
+    {
+      "name": "Optimal Approach",
+      "description": "Use TreeMap/SortedDict to store rate history per driver. Each entry maps effectiveTime \u2192 rate. Use floorEntry() to find applicable rate in O(log r).",
+      "time_complexity": "O(log r) for update and lookup",
+      "space_complexity": "O(r) per driver where r = rate changes",
+      "key_insight": "TreeMap.floorEntry(key) returns the entry with the largest key \u2264 given key. This naturally finds 'the most recent rate change at or before this time'."
+    }
+  ],
+  "optimal_solution": {
+    "explanation_md": "## Solution Architecture\n\n**Core Change:** Replace `Dict[int, Decimal]` mapping driver \u2192 rate with `Dict[int, SortedDict]` mapping driver \u2192 rate_history.\n\n**Rate History Structure:**\n- Each driver has a `SortedDict` (or `TreeMap` in Java)\n- Keys are timestamps when rates became effective\n- Values are the hourly rates\n- Initial rate from `addDriver()` is stored at timestamp 0\n\n**Rate Lookup Algorithm:**\n1. Get the driver's rate history\n2. Find the **floor entry** (largest key \u2264 query timestamp)\n3. Return that rate\n\n**Why This Works:**\n- Floor query is **O(log r)** in balanced tree structures\n- Naturally handles any number of rate changes\n- No need to recalculate past deliveries\n- Clean separation: rate storage vs rate lookup logic",
+    "data_structures": [
+      {
+        "structure": "TreeMap<Long, BigDecimal> / SortedDict",
+        "purpose": "Store rate history with O(log n) floor queries"
+      },
+      {
+        "structure": "HashMap<Integer, TreeMap>",
+        "purpose": "Map each driver to their rate history"
+      },
+      {
+        "structure": "BigDecimal/Decimal",
+        "purpose": "Precise financial calculations"
+      }
+    ],
+    "algorithm_steps": [
+      "Step 1: In addDriver(), create SortedDict with {0: initial_rate}",
+      "Step 2: In updateDriverRate(), insert {effective_time: new_rate} into driver's SortedDict",
+      "Step 3: In addDelivery(), call _get_rate_at_time(driver_id, start_time)",
+      "Step 4: _get_rate_at_time() uses bisect to find floor entry",
+      "Step 5: Calculate cost using the looked-up historical rate",
+      "Step 6: Add cost to running total and unpaid amount"
+    ]
+  },
+  "solution_python_lines": [
+    "from decimal import Decimal, ROUND_HALF_UP",
+    "from typing import Dict, List, Tuple",
+    "import bisect",
+    "",
+    "",
+    "class RateHistory:",
+    "    \"\"\"",
+    "    Stores rate history for a driver with efficient floor queries.",
+    "    Uses sorted list + bisect for O(log n) lookups.",
+    "    \"\"\"",
+    "    ",
+    "    def __init__(self, initial_rate: Decimal):",
+    "        self._timestamps: List[int] = [0]",
+    "        self._rates: List[Decimal] = [initial_rate]",
+    "    ",
+    "    def update(self, timestamp: int, rate: Decimal) -> None:",
+    "        \"\"\"Add or update rate at given timestamp.\"\"\"",
+    "        idx = bisect.bisect_left(self._timestamps, timestamp)",
+    "        if idx < len(self._timestamps) and self._timestamps[idx] == timestamp:",
+    "            # Update existing timestamp",
+    "            self._rates[idx] = rate",
+    "        else:",
+    "            # Insert new timestamp",
+    "            self._timestamps.insert(idx, timestamp)",
+    "            self._rates.insert(idx, rate)",
+    "    ",
+    "    def get_rate_at(self, timestamp: int) -> Decimal:",
+    "        \"\"\"Get rate effective at given timestamp (floor query).\"\"\"",
+    "        idx = bisect.bisect_right(self._timestamps, timestamp) - 1",
+    "        if idx < 0:",
+    "            return self._rates[0]",
+    "        return self._rates[idx]",
+    "",
+    "",
+    "class DeliveryCostTracker:",
+    "    \"\"\"",
+    "    Delivery Cost Tracking System - Part 4: Dynamic Rate Updates",
+    "    ",
+    "    Supports:",
+    "    - Adding drivers with initial hourly rates",
+    "    - Dynamic rate updates with effective timestamps",
+    "    - Delivery cost calculation using historical rates",
+    "    - Payment settlement tracking (Part 2)",
+    "    - Maximum active drivers analytics (Part 3)",
+    "    ",
+    "    Time Complexity:",
+    "    - addDriver: O(1)",
+    "    - updateDriverRate: O(log r) where r = rate changes for driver",
+    "    - addDelivery: O(log r)",
+    "    - getTotalCost: O(1)",
+    "    - settlePayment: O(1)",
+    "    - getMaxActiveDrivers: O(n log n) first call, O(1) subsequent",
+    "    \"\"\"",
+    "    ",
+    "    def __init__(self):",
+    "        # Driver rate histories: driver_id -> RateHistory",
+    "        self._driver_rates: Dict[int, RateHistory] = {}",
+    "        ",
+    "        # Running total cost (precise)",
+    "        self._total_cost: Decimal = Decimal('0')",
+    "        ",
+    "        # Part 2: Payment tracking - unpaid amount per driver",
+    "        self._unpaid: Dict[int, Decimal] = {}",
+    "        ",
+    "        # Part 3: Events for max active calculation",
+    "        self._events: List[Tuple[int, int]] = []",
+    "        self._max_active: int = 0",
+    "        self._computed: bool = False",
+    "    ",
+    "    def add_driver(self, driver_id: int, hourly_rate: int) -> None:",
+    "        \"\"\"",
+    "        Add a new driver with initial hourly rate.",
+    "        Rate is effective from timestamp 0.",
+    "        ",
+    "        Args:",
+    "            driver_id: Unique identifier for the driver",
+    "            hourly_rate: Initial hourly rate in dollars",
+    "        \"\"\"",
+    "        if driver_id in self._driver_rates:",
+    "            return  # Driver already exists",
+    "        ",
+    "        rate = Decimal(str(hourly_rate))",
+    "        self._driver_rates[driver_id] = RateHistory(rate)",
+    "        self._unpaid[driver_id] = Decimal('0')",
+    "    ",
+    "    def update_driver_rate(self, driver_id: int, new_rate, effective_time: int) -> None:",
+    "        \"\"\"",
+    "        Update a driver's hourly rate with an effective timestamp.",
+    "        ",
+    "        Args:",
+    "            driver_id: ID of the driver to update",
+    "            new_rate: New hourly rate (Decimal or int)",
+    "            effective_time: Timestamp when the new rate takes effect",
+    "        \"\"\"",
+    "        if driver_id not in self._driver_rates:",
+    "            return  # Driver doesn't exist",
+    "        ",
+    "        # Convert to Decimal if needed",
+    "        if isinstance(new_rate, int):",
+    "            new_rate = Decimal(str(new_rate))",
+    "        elif not isinstance(new_rate, Decimal):",
+    "            new_rate = Decimal(str(new_rate))",
+    "        ",
+    "        self._driver_rates[driver_id].update(effective_time, new_rate)",
+    "    ",
+    "    def add_delivery(self, driver_id: int, start_time: int, end_time: int) -> None:",
+    "        \"\"\"",
+    "        Record a delivery and calculate cost using rate at start time.",
+    "        ",
+    "        Formula: cost = rate \u00d7 (endTime - startTime) / 3600",
+    "        ",
+    "        Args:",
+    "            driver_id: ID of the driver making the delivery",
+    "            start_time: Delivery start time in epoch seconds",
+    "            end_time: Delivery end time in epoch seconds",
+    "        \"\"\"",
+    "        if driver_id not in self._driver_rates:",
+    "            return  # Unknown driver",
+    "        ",
+    "        # Get rate effective at delivery start time",
+    "        rate = self._driver_rates[driver_id].get_rate_at(start_time)",
+    "        ",
+    "        # Calculate cost with full precision",
+    "        duration_seconds = Decimal(str(end_time - start_time))",
+    "        duration_hours = duration_seconds / Decimal('3600')",
+    "        cost = rate * duration_hours",
+    "        ",
+    "        # Update running totals",
+    "        self._total_cost += cost",
+    "        self._unpaid[driver_id] += cost",
+    "        ",
+    "        # Track events for max active calculation (Part 3)",
+    "        self._events.append((start_time, 1))   # Start: +1 active",
+    "        self._events.append((end_time, -1))    # End: -1 active",
+    "        self._computed = False",
+    "    ",
+    "    def get_total_cost(self) -> int:",
+    "        \"\"\"",
+    "        Get total cost to pay all drivers, rounded to nearest integer.",
+    "        ",
+    "        Returns:",
+    "            Total cost rounded using HALF_UP rounding",
+    "        \"\"\"",
+    "        return int(self._total_cost.quantize(Decimal('1'), rounding=ROUND_HALF_UP))",
+    "    ",
+    "    def settle_payment(self, driver_id: int) -> int:",
+    "        \"\"\"",
+    "        Settle payment for a driver (Part 2).",
+    "        Returns amount paid and resets unpaid to zero.",
+    "        ",
+    "        Args:",
+    "            driver_id: ID of the driver to settle",
+    "            ",
+    "        Returns:",
+    "            Amount paid, rounded to nearest integer",
+    "        \"\"\"",
+    "        if driver_id not in self._unpaid:",
+    "            return 0",
+    "        ",
+    "        amount = self._unpaid[driver_id]",
+    "        self._unpaid[driver_id] = Decimal('0')",
+    "        return int(amount.quantize(Decimal('1'), rounding=ROUND_HALF_UP))",
+    "    ",
+    "    def get_unpaid_amount(self, driver_id: int) -> int:",
+    "        \"\"\"Get current unpaid amount for a driver (Part 2).\"\"\"",
+    "        if driver_id not in self._unpaid:",
+    "            return 0",
+    "        return int(self._unpaid[driver_id].quantize(Decimal('1'), rounding=ROUND_HALF_UP))",
+    "    ",
+    "    def get_max_active_drivers(self) -> int:",
+    "        \"\"\"",
+    "        Get maximum number of simultaneously active drivers (Part 3).",
+    "        Uses line sweep algorithm.",
+    "        ",
+    "        Returns:",
+    "            Maximum number of drivers delivering at any moment",
+    "        \"\"\"",
+    "        if self._computed:",
+    "            return self._max_active",
+    "        ",
+    "        if not self._events:",
+    "            self._max_active = 0",
+    "            self._computed = True",
+    "            return 0",
+    "        ",
+    "        # Sort: by time, then ends (-1) before starts (+1) at same time",
+    "        sorted_events = sorted(self._events, key=lambda x: (x[0], x[1]))",
+    "        ",
+    "        current_active = 0",
+    "        max_active = 0",
+    "        ",
+    "        for _, delta in sorted_events:",
+    "            current_active += delta",
+    "            max_active = max(max_active, current_active)",
+    "        ",
+    "        self._max_active = max_active",
+    "        self._computed = True",
+    "        return self._max_active",
+    "",
+    "",
+    "def main():",
+    "    \"\"\"Demonstrate Part 4: Dynamic Rate Updates functionality.\"\"\"",
+    "    print(\"=\" * 60)",
+    "    print(\"Part 4: Dynamic Rate Updates Demo\")",
+    "    print(\"=\" * 60)",
+    "    ",
+    "    tracker = DeliveryCostTracker()",
+    "    ",
+    "    # Example from problem",
+    "    print(\"\\n--- Example from Problem ---\")",
+    "    print(\"1. addDriver(1, 20) - Add driver with $20/hr\")",
+    "    tracker.add_driver(1, 20)",
+    "    ",
+    "    print(\"2. addDelivery(1, 0, 3600) - 1 hour at $20/hr = $20\")",
+    "    tracker.add_delivery(1, 0, 3600)",
+    "    print(f\"   Total cost so far: ${tracker.get_total_cost()}\")",
+    "    ",
+    "    print(\"3. updateDriverRate(1, 30, 3600) - Rate changes to $30/hr\")",
+    "    tracker.update_driver_rate(1, 30, 3600)",
+    "    ",
+    "    print(\"4. addDelivery(1, 3600, 7200) - 1 hour at $30/hr = $30\")",
+    "    tracker.add_delivery(1, 3600, 7200)",
+    "    ",
+    "    print(\"5. getTotalCost()\")",
+    "    total = tracker.get_total_cost()",
+    "    print(f\"   Result: ${total}\")",
+    "    print(f\"   Expected: $50 \u2713\" if total == 50 else f\"   Expected: $50 \u2717\")",
+    "    ",
+    "    # More complex scenario",
+    "    print(\"\\n--- Complex Scenario: Multiple Rate Changes ---\")",
+    "    tracker2 = DeliveryCostTracker()",
+    "    ",
+    "    tracker2.add_driver(1, 15)  # Initial: $15/hr",
+    "    print(\"Driver 1: Initial rate $15/hr\")",
+    "    ",
+    "    # Schedule rate changes",
+    "    tracker2.update_driver_rate(1, 20, 1000)  # $20 at t=1000",
+    "    tracker2.update_driver_rate(1, 25, 2000)  # $25 at t=2000",
+    "    tracker2.update_driver_rate(1, 30, 3000)  # $30 at t=3000",
+    "    print(\"Rate history: t=0\u2192$15, t=1000\u2192$20, t=2000\u2192$25, t=3000\u2192$30\")",
+    "    ",
+    "    # Add deliveries at different times",
+    "    print(\"\\nDeliveries:\")",
+    "    print(\"  Delivery at t=500 (0.5hr): Uses $15/hr = $7.50\")",
+    "    tracker2.add_delivery(1, 500, 2300)  # 0.5 hr at rate effective at t=500",
+    "    ",
+    "    print(\"  Delivery at t=1500 (0.5hr): Uses $20/hr = $10\")",
+    "    tracker2.add_delivery(1, 1500, 3300)  # Uses rate at t=1500",
+    "    ",
+    "    print(\"  Delivery at t=2500 (0.5hr): Uses $25/hr = $12.50\")",
+    "    tracker2.add_delivery(1, 2500, 4300)",
+    "    ",
+    "    print(\"  Delivery at t=3500 (1hr): Uses $30/hr = $30\")",
+    "    tracker2.add_delivery(1, 3500, 7100)",
+    "    ",
+    "    total2 = tracker2.get_total_cost()",
+    "    print(f\"\\nTotal cost: ${total2}\")",
+    "    ",
+    "    # Parts 2 & 3 still work",
+    "    print(\"\\n--- Previous Parts Still Work ---\")",
+    "    print(f\"Unpaid for Driver 1: ${tracker2.get_unpaid_amount(1)}\")",
+    "    settled = tracker2.settle_payment(1)",
+    "    print(f\"Settled: ${settled}\")",
+    "    print(f\"Max active drivers: {tracker2.get_max_active_drivers()}\")",
+    "    ",
+    "    print(\"\\n\" + \"=\" * 60)",
+    "    print(\"All Part 4 tests completed!\")",
+    "    print(\"=\" * 60)",
+    "",
+    "",
+    "if __name__ == \"__main__\":",
+    "    main()"
+  ],
+  "solution_java_lines": [
+    "import java.math.BigDecimal;",
+    "import java.math.RoundingMode;",
+    "import java.util.*;",
+    "",
+    "/**",
+    " * Delivery Cost Tracking System - Part 4: Dynamic Rate Updates",
+    " * ",
+    " * Supports dynamic rate changes with effective timestamps.",
+    " * Uses TreeMap for O(log n) floor queries on rate history.",
+    " */",
+    "public class DeliveryCostTracker {",
+    "    ",
+    "    // Driver rate histories: driverId -> TreeMap<effectiveTime, rate>",
+    "    private Map<Integer, TreeMap<Long, BigDecimal>> driverRates;",
+    "    ",
+    "    // Running total cost with full precision",
+    "    private BigDecimal totalCost;",
+    "    ",
+    "    // Part 2: Unpaid amounts per driver",
+    "    private Map<Integer, BigDecimal> unpaid;",
+    "    ",
+    "    // Part 3: Events for max active calculation",
+    "    private List<long[]> events;",
+    "    private int maxActive;",
+    "    private boolean computed;",
+    "    ",
+    "    private static final BigDecimal SECONDS_PER_HOUR = new BigDecimal(\"3600\");",
+    "    ",
+    "    public DeliveryCostTracker() {",
+    "        driverRates = new HashMap<>();",
+    "        totalCost = BigDecimal.ZERO;",
+    "        unpaid = new HashMap<>();",
+    "        events = new ArrayList<>();",
+    "        maxActive = 0;",
+    "        computed = false;",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Add a new driver with initial hourly rate.",
+    "     * Rate is effective from timestamp 0.",
+    "     */",
+    "    public void addDriver(int driverId, int hourlyRate) {",
+    "        if (driverRates.containsKey(driverId)) {",
+    "            return; // Driver already exists",
+    "        }",
+    "        ",
+    "        TreeMap<Long, BigDecimal> rateHistory = new TreeMap<>();",
+    "        rateHistory.put(0L, new BigDecimal(hourlyRate));",
+    "        driverRates.put(driverId, rateHistory);",
+    "        unpaid.put(driverId, BigDecimal.ZERO);",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Update a driver's hourly rate with an effective timestamp.",
+    "     * ",
+    "     * @param driverId ID of the driver to update",
+    "     * @param newRate New hourly rate",
+    "     * @param effectiveTime When the new rate takes effect",
+    "     */",
+    "    public void updateDriverRate(int driverId, BigDecimal newRate, long effectiveTime) {",
+    "        if (!driverRates.containsKey(driverId)) {",
+    "            return; // Driver doesn't exist",
+    "        }",
+    "        driverRates.get(driverId).put(effectiveTime, newRate);",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Get the rate effective at a given timestamp for a driver.",
+    "     * Uses TreeMap.floorEntry() for O(log n) lookup.",
+    "     */",
+    "    private BigDecimal getRateAtTime(int driverId, long timestamp) {",
+    "        TreeMap<Long, BigDecimal> rateHistory = driverRates.get(driverId);",
+    "        Map.Entry<Long, BigDecimal> entry = rateHistory.floorEntry(timestamp);",
+    "        ",
+    "        if (entry == null) {",
+    "            // Timestamp before first rate entry - use first rate",
+    "            return rateHistory.firstEntry().getValue();",
+    "        }",
+    "        return entry.getValue();",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Record a delivery and calculate cost using rate at start time.",
+    "     * Formula: cost = rate \u00d7 (endTime - startTime) / 3600",
+    "     */",
+    "    public void addDelivery(int driverId, long startTime, long endTime) {",
+    "        if (!driverRates.containsKey(driverId)) {",
+    "            return; // Unknown driver",
+    "        }",
+    "        ",
+    "        // Get rate effective at delivery start time",
+    "        BigDecimal rate = getRateAtTime(driverId, startTime);",
+    "        ",
+    "        // Calculate cost with full precision",
+    "        BigDecimal durationSeconds = new BigDecimal(endTime - startTime);",
+    "        BigDecimal durationHours = durationSeconds.divide(SECONDS_PER_HOUR, 10, RoundingMode.HALF_UP);",
+    "        BigDecimal cost = rate.multiply(durationHours);",
+    "        ",
+    "        // Update totals",
+    "        totalCost = totalCost.add(cost);",
+    "        unpaid.put(driverId, unpaid.get(driverId).add(cost));",
+    "        ",
+    "        // Track events for max active (Part 3)",
+    "        events.add(new long[]{startTime, 1});",
+    "        events.add(new long[]{endTime, -1});",
+    "        computed = false;",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Get total cost to pay all drivers, rounded to nearest integer.",
+    "     */",
+    "    public int getTotalCost() {",
+    "        return totalCost.setScale(0, RoundingMode.HALF_UP).intValue();",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Settle payment for a driver (Part 2).",
+    "     * Returns amount paid and resets unpaid to zero.",
+    "     */",
+    "    public int settlePayment(int driverId) {",
+    "        if (!unpaid.containsKey(driverId)) {",
+    "            return 0;",
+    "        }",
+    "        BigDecimal amount = unpaid.get(driverId);",
+    "        unpaid.put(driverId, BigDecimal.ZERO);",
+    "        return amount.setScale(0, RoundingMode.HALF_UP).intValue();",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Get current unpaid amount for a driver (Part 2).",
+    "     */",
+    "    public int getUnpaidAmount(int driverId) {",
+    "        if (!unpaid.containsKey(driverId)) {",
+    "            return 0;",
+    "        }",
+    "        return unpaid.get(driverId).setScale(0, RoundingMode.HALF_UP).intValue();",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Get maximum number of simultaneously active drivers (Part 3).",
+    "     */",
+    "    public int getMaxActiveDrivers() {",
+    "        if (computed) {",
+    "            return maxActive;",
+    "        }",
+    "        ",
+    "        if (events.isEmpty()) {",
+    "            maxActive = 0;",
+    "            computed = true;",
+    "            return 0;",
+    "        }",
+    "        ",
+    "        // Sort: by time, then ends before starts at same time",
+    "        events.sort((a, b) -> {",
+    "            if (a[0] != b[0]) return Long.compare(a[0], b[0]);",
+    "            return Long.compare(a[1], b[1]);",
+    "        });",
+    "        ",
+    "        int currentActive = 0;",
+    "        maxActive = 0;",
+    "        ",
+    "        for (long[] event : events) {",
+    "            currentActive += (int) event[1];",
+    "            maxActive = Math.max(maxActive, currentActive);",
+    "        }",
+    "        ",
+    "        computed = true;",
+    "        return maxActive;",
+    "    }",
+    "    ",
+    "    public static void main(String[] args) {",
+    "        System.out.println(\"============================================================\");",
+    "        System.out.println(\"Part 4: Dynamic Rate Updates Demo\");",
+    "        System.out.println(\"============================================================\");",
+    "        ",
+    "        DeliveryCostTracker tracker = new DeliveryCostTracker();",
+    "        ",
+    "        // Example from problem",
+    "        System.out.println(\"\\n--- Example from Problem ---\");",
+    "        System.out.println(\"1. addDriver(1, 20) - Add driver with $20/hr\");",
+    "        tracker.addDriver(1, 20);",
+    "        ",
+    "        System.out.println(\"2. addDelivery(1, 0, 3600) - 1 hour at $20/hr = $20\");",
+    "        tracker.addDelivery(1, 0, 3600);",
+    "        System.out.println(\"   Total cost so far: $\" + tracker.getTotalCost());",
+    "        ",
+    "        System.out.println(\"3. updateDriverRate(1, 30, 3600) - Rate changes to $30/hr\");",
+    "        tracker.updateDriverRate(1, new BigDecimal(\"30\"), 3600);",
+    "        ",
+    "        System.out.println(\"4. addDelivery(1, 3600, 7200) - 1 hour at $30/hr = $30\");",
+    "        tracker.addDelivery(1, 3600, 7200);",
+    "        ",
+    "        System.out.println(\"5. getTotalCost()\");",
+    "        int total = tracker.getTotalCost();",
+    "        System.out.println(\"   Result: $\" + total);",
+    "        System.out.println(total == 50 ? \"   Expected: $50 \u2713\" : \"   Expected: $50 \u2717\");",
+    "        ",
+    "        System.out.println(\"\\n============================================================\");",
+    "        System.out.println(\"All Part 4 tests completed!\");",
+    "        System.out.println(\"============================================================\");",
+    "    }",
+    "}"
+  ],
+  "code_walkthrough": [
+    {
+      "lines": "1-4",
+      "explanation": "Imports: Decimal for precision, bisect for binary search, typing for type hints"
+    },
+    {
+      "lines": "7-29",
+      "explanation": "RateHistory helper class: Maintains sorted timestamps and rates, provides O(log n) floor query via bisect"
+    },
+    {
+      "lines": "32-57",
+      "explanation": "DeliveryCostTracker class setup: Changed from Dict[int, Decimal] to Dict[int, RateHistory] for rate storage"
+    },
+    {
+      "lines": "59-72",
+      "explanation": "add_driver: Creates RateHistory with initial rate at timestamp 0"
+    },
+    {
+      "lines": "74-91",
+      "explanation": "NEW: update_driver_rate: Inserts new rate entry into driver's rate history"
+    },
+    {
+      "lines": "93-120",
+      "explanation": "add_delivery: Now calls get_rate_at() to find historical rate instead of direct lookup"
+    },
+    {
+      "lines": "122-130",
+      "explanation": "get_total_cost: Unchanged from Part 3"
+    },
+    {
+      "lines": "132-175",
+      "explanation": "settle_payment, get_unpaid_amount, get_max_active_drivers: Unchanged from Parts 2-3"
+    }
+  ],
+  "complexity_analysis": {
+    "time": {
+      "new_methods": {
+        "updateDriverRate": {
+          "complexity": "O(log r)",
+          "explanation": "Inserting into sorted list with bisect.insort is O(n) for list, O(log n) for TreeMap. Using bisect_left + insert is O(r) worst case for list; O(log r) for TreeMap."
+        },
+        "rate lookup": {
+          "complexity": "O(log r)",
+          "explanation": "bisect_right is O(log r), direct index access is O(1)"
+        }
+      },
+      "overall_change": "addDelivery now includes O(log r) rate lookup instead of O(1), where r is number of rate changes for that driver. In practice, r << n (rate changes are rare), so impact is minimal."
+    },
+    "space": {
+      "additional_space": "O(R) where R = total rate changes across all drivers",
+      "explanation": "Each rate change adds one (timestamp, rate) pair. Old data structure: O(D) for D drivers. New: O(D + R)."
+    }
+  },
+  "dry_run": {
+    "example_input": "addDriver(1,20), addDelivery(1,0,3600), updateDriverRate(1,30,3600), addDelivery(1,3600,7200), getTotalCost()",
+    "steps": [
+      {
+        "step": 1,
+        "action": "addDriver(1, 20)",
+        "state": "driver_rates = {1: {0: $20}}, total = $0",
+        "explanation": "Driver 1 added with rate $20/hr effective from t=0"
+      },
+      {
+        "step": 2,
+        "action": "addDelivery(1, 0, 3600)",
+        "state": "rate_lookup(0) = $20, cost = $20\u00d71hr = $20, total = $20",
+        "explanation": "Floor query at t=0 finds rate $20. 1 hour delivery = $20"
+      },
+      {
+        "step": 3,
+        "action": "updateDriverRate(1, 30, 3600)",
+        "state": "driver_rates = {1: {0: $20, 3600: $30}}",
+        "explanation": "New rate $30 added at t=3600. History now has 2 entries"
+      },
+      {
+        "step": 4,
+        "action": "addDelivery(1, 3600, 7200)",
+        "state": "rate_lookup(3600) = $30, cost = $30\u00d71hr = $30, total = $50",
+        "explanation": "Floor query at t=3600 finds exact match \u2192 $30. 1 hour = $30"
+      },
+      {
+        "step": 5,
+        "action": "getTotalCost()",
+        "state": "return round($50) = 50",
+        "explanation": "Return total with HALF_UP rounding"
+      }
+    ],
+    "final_output": "50"
+  },
+  "debugging_playbook": {
+    "fast_sanity_checks": [
+      "Single driver, no rate changes, one delivery \u2192 should work like Part 1",
+      "Rate update after delivery \u2192 delivery should use old rate"
+    ],
+    "likely_bugs": [
+      "Using bisect_left instead of bisect_right for floor query",
+      "Forgetting to handle timestamp before first rate entry",
+      "Using current rate instead of calling rate lookup",
+      "Off-by-one in bisect result (forget -1)"
+    ],
+    "recommended_logs_or_asserts": [
+      "assert len(rate_history) >= 1, 'Driver must have at least initial rate'",
+      "Log: f'Looking up rate for driver {id} at time {t}, found {rate}'",
+      "Log: f'Rate history for driver {id}: {sorted(history.items())}'"
+    ],
+    "how_to_localize": "1) Print rate history after each update. 2) Print looked-up rate in addDelivery. 3) Verify floor query returns expected timestamp. 4) Check if cost calculation uses looked-up rate."
+  },
+  "edge_cases": [
+    {
+      "case": "Rate update before any deliveries",
+      "handling": "Simply adds to rate history, no impact on past",
+      "gotcha": "Order of operations doesn't affect correctness"
+    },
+    {
+      "case": "Multiple rate updates at same timestamp",
+      "handling": "Last update wins (overwrites in TreeMap/SortedDict)",
+      "gotcha": "Depends on implementation - document behavior"
+    },
+    {
+      "case": "Delivery start time before first rate entry",
+      "handling": "Use first rate in history (rate at t=0 from addDriver)",
+      "gotcha": "bisect_right returns 0, idx-1 = -1, need to handle"
+    },
+    {
+      "case": "Retroactive rate update (effectiveTime in past)",
+      "handling": "Added to history, affects future deliveries with that start time",
+      "gotcha": "Does NOT recalculate already-added deliveries"
+    },
+    {
+      "case": "Driver doesn't exist when updating rate",
+      "handling": "Silently ignore (return early)",
+      "gotcha": "Could throw exception instead - design decision"
+    }
+  ],
+  "test_cases": [
+    {
+      "name": "Basic rate update",
+      "input": "addDriver(1,20), addDelivery(1,0,3600), updateDriverRate(1,30,3600), addDelivery(1,3600,7200), getTotalCost()",
+      "expected": "50",
+      "explanation": "First delivery at $20/hr = $20. Second at $30/hr = $30. Total = $50"
+    },
+    {
+      "name": "Rate lookup at exact boundary",
+      "input": "addDriver(1,10), updateDriverRate(1,20,1000), addDelivery(1,1000,2000), getTotalCost()",
+      "expected": "6 (0.278hr \u00d7 $20 \u2248 $5.56, rounded)",
+      "explanation": "Delivery starts exactly at rate change time - should use new rate"
+    },
+    {
+      "name": "Multiple rate changes",
+      "input": "addDriver(1,10), updateRate(1,20,100), updateRate(1,30,200), addDelivery(1,150,3750), getTotalCost()",
+      "expected": "20",
+      "explanation": "At t=150, applicable rate is $20 (between 100 and 200). 1 hour = $20"
+    },
+    {
+      "name": "Parts 2 & 3 still work",
+      "input": "addDriver(1,20), addDelivery(1,0,3600), updateRate(1,30,3600), addDelivery(1,3600,7200), getUnpaidAmount(1), getMaxActiveDrivers()",
+      "expected": "unpaid=50, maxActive=1",
+      "explanation": "Previous functionality unaffected by rate history"
+    }
+  ],
+  "common_mistakes": [
+    {
+      "mistake": "Using current rate instead of historical rate",
+      "why_wrong": "The most recent rate update might not apply to a delivery that started earlier",
+      "correct_approach": "Always look up rate at delivery's start time",
+      "code_example_wrong": "rate = self._driver_rates[driver_id]  # Gets current rate",
+      "code_example_correct": "rate = self._get_rate_at_time(driver_id, start_time)"
+    },
+    {
+      "mistake": "Wrong floor query implementation",
+      "why_wrong": "bisect_left vs bisect_right confusion leads to wrong rate",
+      "correct_approach": "Use bisect_right and subtract 1 to get floor",
+      "code_example_wrong": "idx = bisect.bisect_left(timestamps, time)  # Might return next",
+      "code_example_correct": "idx = bisect.bisect_right(timestamps, time) - 1  # Floor"
+    },
+    {
+      "mistake": "Not handling timestamp before first entry",
+      "why_wrong": "bisect_right - 1 can be -1 if timestamp < all entries",
+      "correct_approach": "Check if idx < 0 and use first rate",
+      "code_example_wrong": "return rates[idx]  # IndexError if idx = -1",
+      "code_example_correct": "if idx < 0: return rates[0]\\nreturn rates[idx]"
+    },
+    {
+      "mistake": "Storing rate history as list without timestamps",
+      "why_wrong": "Can't perform efficient floor queries",
+      "correct_approach": "Use sorted map or parallel sorted arrays",
+      "code_example_wrong": "rate_history = [20, 25, 30]  # No way to query by time",
+      "code_example_correct": "rate_history = SortedDict({0: 20, 1000: 25, 2000: 30})"
+    }
+  ],
+  "interview_tips": {
+    "how_to_present": "Start by clarifying the rate application policy (at start time). Explain the TreeMap/floor query approach. Show how minimal changes are needed to existing code.",
+    "what_to_mention": [
+      "This is a classic interval/range query pattern",
+      "TreeMap.floorEntry() is the key operation",
+      "Design decision: rate at start time vs pro-rated",
+      "Space-time tradeoff: storing history vs recalculating"
+    ],
+    "time_allocation": "2 min clarify requirements, 3 min explain approach, 5 min implement, 2 min test",
+    "if_stuck": [
+      "Think about how to find 'the most recent rate change before time T'",
+      "What data structure supports 'find largest key \u2264 X' efficiently?",
+      "TreeMap and floor queries are the key insight"
+    ]
+  },
+  "connection_to_next_part": "Part 5 might introduce rate caps, surge pricing, or different rate types (base + per-mile). The RateHistory abstraction makes this extensible - could store more complex rate objects instead of just Decimal values.",
+  "communication_script": {
+    "transition_from_previous": "Great, Part 3 is working with max active drivers. For Part 4, I need to support dynamic rate updates. Let me clarify the requirements first...",
+    "explaining_changes": "The key change is replacing the single rate per driver with a rate history. I'll use a TreeMap/SortedDict that maps effective timestamps to rates. When calculating delivery cost, I'll use a floor query to find the applicable rate.",
+    "while_extending_code": [
+      "I'm changing _drivers from Dict[int, Decimal] to Dict[int, RateHistory]...",
+      "Adding a helper method _get_rate_at_time that uses bisect for floor query...",
+      "The addDelivery method now calls this helper instead of direct lookup..."
+    ],
+    "after_completing": "This now handles Part 4. Rate updates are O(log r) and rate lookups are O(log r). The previous parts still work unchanged. Ready for Part 5!"
+  },
+  "time_milestones": {
+    "time_budget": "8-12 minutes for this part",
+    "by_2_min": "Clarify: rate at start time policy. Identify: need TreeMap for floor queries.",
+    "by_5_min": "Explain approach. Start modifying _drivers to rate history.",
+    "by_10_min": "Implementation done. Testing with example: $20 + $30 = $50",
+    "warning_signs": "If still debating pro-rated vs start-time at 3 min, just pick start-time and move on."
+  },
+  "recovery_strategies": {
+    "if_part_builds_wrong": "If Part 3 has a bug, fix it first. Say: 'Let me fix this issue from Part 3 before adding rate updates.'",
+    "if_new_requirement_unclear": "Ask: 'Should the new rate apply only to deliveries starting after the effective time, or should it retroactively affect ongoing deliveries?'",
+    "if_running_behind": "Skip pro-rated calculation. Implement simple 'rate at start time' and mention: 'Pro-rated would require iterating rate changes during delivery interval.'"
+  },
+  "signal_points": {
+    "wow_factors_for_followup": [
+      "Immediately recognizing TreeMap/floor query pattern",
+      "Discussing pro-rated option even if not implementing",
+      "Mentioning this is similar to versioned/temporal data patterns",
+      "Noting that previous methods remain O(1) while only rate lookup becomes O(log r)"
+    ]
+  },
+  "pattern_recognition": {
+    "pattern": "Temporal/Versioned Data with Range Queries",
+    "indicators": [
+      "Data changes over time with effective timestamps",
+      "Need to query 'what was the value at time T?'",
+      "Floor query: find largest key \u2264 given value"
+    ],
+    "similar_problems": [
+      "LC 981 - Time Based Key-Value Store",
+      "LC 729 - My Calendar I (interval queries)",
+      "Versioned databases (temporal tables in SQL)"
+    ],
+    "template": "```python\\n# Generic floor query pattern\\nfrom bisect import bisect_right\\n\\nclass VersionedValue:\\n    def __init__(self, initial):\\n        self.times = [0]\\n        self.values = [initial]\\n    \\n    def set(self, time, value):\\n        idx = bisect_right(self.times, time)\\n        if idx > 0 and self.times[idx-1] == time:\\n            self.values[idx-1] = value\\n        else:\\n            self.times.insert(idx, time)\\n            self.values.insert(idx, value)\\n    \\n    def get(self, time):\\n        idx = bisect_right(self.times, time) - 1\\n        return self.values[max(0, idx)]\\n```"
+  },
+  "thinking_process": [
+    {
+      "step": 1,
+      "thought": "When I see 'rate changes at different times', I think versioned/temporal data",
+      "why": "This is a classic pattern where values have validity periods"
+    },
+    {
+      "step": 2,
+      "thought": "The key operation is 'find rate effective at time T'",
+      "why": "This is a floor query - find largest timestamp \u2264 T"
+    },
+    {
+      "step": 3,
+      "thought": "TreeMap is perfect for floor queries",
+      "why": "floorEntry() is O(log n) and exactly what we need"
+    },
+    {
+      "step": 4,
+      "thought": "Minimal changes to existing code",
+      "why": "Only rate storage and lookup changes; rest stays the same"
+    }
+  ],
+  "interviewer_perspective": {
+    "what_they_evaluate": [
+      "Can you extend existing code cleanly without rewriting?",
+      "Do you recognize the floor query pattern?",
+      "Do you clarify the rate application policy?",
+      "Can you implement TreeMap-based solution correctly?"
+    ],
+    "bonus_points": [
+      "Mentioning pro-rated alternative and why you chose not to implement it",
+      "Noting that this is temporal data pattern",
+      "Clean helper method extraction for rate lookup",
+      "Discussing edge cases like 'timestamp before first rate'"
+    ],
+    "red_flags": [
+      "Rewriting everything from scratch",
+      "Not asking about rate application policy",
+      "Using linear scan instead of log(n) lookup",
+      "Forgetting to handle edge cases in floor query"
+    ]
+  },
+  "ai_copilot_tips": {
+    "what_to_do": [
+      "Use AI to generate the RateHistory helper class boilerplate",
+      "Let AI help with bisect syntax if unfamiliar",
+      "Ask AI to verify floor query edge cases"
+    ],
+    "what_not_to_do": [
+      "Don't let AI decide between pro-rated vs start-time policy",
+      "Review the bisect logic carefully - AI often gets off-by-one",
+      "Make sure you understand the TreeMap/SortedDict operations"
+    ]
+  },
+  "red_flags_to_avoid": {
+    "behavioral": [
+      "Not clarifying rate application policy before coding",
+      "Staying silent while refactoring"
+    ],
+    "technical": [
+      "Using O(n) linear scan for rate lookup",
+      "Modifying working Part 3 code unnecessarily",
+      "Getting bisect_left vs bisect_right wrong"
+    ],
+    "communication": [
+      "Not explaining why TreeMap is the right choice",
+      "Forgetting to test with the given example"
+    ]
+  },
+  "final_checklist": {
+    "before_saying_done": [
+      "Does updateDriverRate add to history (not replace)?",
+      "Does rate lookup use floor query correctly?",
+      "Did I handle timestamp before first rate entry?",
+      "Did I trace through example: $20 + $30 = $50?"
+    ],
+    "quick_code_review": [
+      "RateHistory helper is clean and reusable",
+      "bisect_right - 1 pattern is correct",
+      "Type hints on new method",
+      "Previous parts still work"
+    ]
+  },
+  "production_considerations": {
+    "what_i_would_add": [
+      "Logging rate changes: 'Driver {id} rate updated to {rate} effective {time}'",
+      "Validation: rate must be positive",
+      "Audit trail: who made the rate change and when",
+      "Rate change limits: prevent accidentally setting rate to $0 or $1000000"
+    ],
+    "why_not_in_interview": "Focus on the core floor query algorithm. These are important but not the algorithmic insight being tested.",
+    "how_to_mention": "Say: 'In production, I'd add input validation to ensure rates are positive, and logging for audit purposes.'"
+  },
+  "generated_at": "2026-01-18T21:05:07.275250",
+  "_meta": {
+    "problem_id": "delivery_cost_tracking",
+    "part_number": 4,
+    "model": "claude-opus-4-5-20251101"
+  }
+}

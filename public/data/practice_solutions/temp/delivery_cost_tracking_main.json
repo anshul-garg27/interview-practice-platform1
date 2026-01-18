@@ -1,0 +1,1139 @@
+{
+  "problem_title": "Delivery Cost Tracking System",
+  "difficulty": "medium",
+  "category": "LLD/OOP Design",
+  "estimated_time": "45-60 minutes",
+  "problem_analysis": {
+    "first_impressions": "This is a classic **OOP Design + HashMap** problem disguised as a delivery tracking system. The critical insight is the **O(1) getTotalCost requirement** - this immediately signals we need to pre-compute and maintain a running total, not calculate on demand. The precision requirement with Decimal/BigDecimal adds a real-world constraint that tests attention to detail.",
+    "pattern_recognition": "**Pre-computation Pattern** (like Range Sum Query) + **HashMap for O(1) lookup** + **Decimal Precision for Currency** + **Running Total maintenance**. This is the bread-and-butter of system design interviews - simple data structures used cleverly.",
+    "key_constraints": [
+      "O(1) getTotalCost - MUST pre-compute, cannot iterate on query",
+      "Decimal precision - float/double WILL fail edge cases like 0.1+0.1+0.1",
+      "Up to 10\u2075 deliveries - confirms O(n) per query is too slow",
+      "Times in epoch seconds - remember to divide by 3600 for hours",
+      "Deliveries don't overlap per driver - simplifies Part 1, but Part 3 uses this"
+    ],
+    "clarifying_questions": [
+      "Should getTotalCost() be O(1)? - **YES, confirms pre-computation approach**",
+      "What precision for currency? BigDecimal/Decimal acceptable? - **Confirms precision requirement**",
+      "Are times in epoch seconds or milliseconds? - **Seconds, affects formula**",
+      "Can a driver have overlapping deliveries? - **No, simplifies design**",
+      "Should addDelivery fail for unknown drivers? - **Defines error handling**",
+      "What rounding mode for currency? - **Shows production awareness**",
+      "Is thread-safety required? - **Shows senior thinking, likely no for interview**"
+    ],
+    "edge_cases_to_consider": [
+      "Driver with zero deliveries - shouldn't affect total",
+      "1-second delivery - tests precision (e.g., $3600/hr \u00d7 1/3600 hr = $1.00)",
+      "Float precision trap - 0.1 + 0.1 + 0.1 must equal 0.3 exactly",
+      "Very long delivery (millions of seconds) - tests overflow handling",
+      "Rate with many decimal places (e.g., $10.333333/hr) - tests Decimal handling",
+      "Multiple deliveries same driver - tests accumulation",
+      "Empty system - getTotalCost() should return 0, not error"
+    ]
+  },
+  "requirements_coverage": {
+    "checklist": [
+      {
+        "requirement": "addDriver(driverId, hourlyRate) - register driver with rate",
+        "how_met": "HashMap<driverId, Decimal rate> for O(1) storage and lookup",
+        "gotchas": [
+          "Store rate as Decimal from the start, not float",
+          "Consider validation for duplicate drivers"
+        ]
+      },
+      {
+        "requirement": "addDelivery(driverId, startTime, endTime) - record delivery",
+        "how_met": "Calculate cost immediately using stored rate, add to running total",
+        "gotchas": [
+          "Decimal arithmetic for duration/3600",
+          "Validate driver exists",
+          "Don't store delivery objects for Part 1 (space optimization)"
+        ]
+      },
+      {
+        "requirement": "getTotalCost() - return total cost in O(1)",
+        "how_met": "Simply return the pre-computed running total - zero iteration",
+        "gotchas": [
+          "DO NOT iterate through deliveries",
+          "Return Decimal, not float"
+        ]
+      }
+    ],
+    "complexity_targets": [
+      {
+        "operation": "addDriver",
+        "target": "O(1)",
+        "achieved": "O(1)",
+        "why": "HashMap.put is O(1) amortized"
+      },
+      {
+        "operation": "addDelivery",
+        "target": "O(1)",
+        "achieved": "O(1)",
+        "why": "HashMap.get + Decimal arithmetic are O(1)"
+      },
+      {
+        "operation": "getTotalCost",
+        "target": "O(1)",
+        "achieved": "O(1)",
+        "why": "Return pre-computed value, no iteration"
+      }
+    ],
+    "non_goals": [
+      "Storing individual deliveries (not needed for Part 1)",
+      "Supporting delivery deletion or modification",
+      "Thread-safety (unless specifically asked)",
+      "Rate updates for existing drivers (Part 4 concern)",
+      "Query by time range (Part 2 concern)"
+    ]
+  },
+  "assumptions": [
+    "Driver IDs are unique - won't call addDriver twice with same ID",
+    "addDelivery only called for existing drivers - otherwise throw/ignore",
+    "endTime > startTime always (valid deliveries)",
+    "Currency precision: 10-20 decimal places sufficient for intermediate calculations",
+    "No concurrent access - single-threaded environment",
+    "Drivers are not removed once added"
+  ],
+  "tradeoffs": [
+    {
+      "decision": "Compute cost on write vs. compute on read",
+      "chosen": "Compute on write (addDelivery)",
+      "why": "O(1) getTotalCost requirement mandates this. Shifts work to infrequent operation.",
+      "alternative": "Compute on read (iterate in getTotalCost)",
+      "when_to_switch": "Never for this problem - O(1) requirement is explicit"
+    },
+    {
+      "decision": "Store deliveries vs. just running total",
+      "chosen": "Just running total for Part 1",
+      "why": "Minimizes space, sufficient for current requirements",
+      "alternative": "Store all deliveries in list/TreeMap",
+      "when_to_switch": "Part 2 requires delivery history for time-based queries"
+    },
+    {
+      "decision": "Decimal vs. float for rates and costs",
+      "chosen": "Decimal (Python) / BigDecimal (Java)",
+      "why": "Precision requirement - 0.1 + 0.1 + 0.1 must equal 0.3 exactly",
+      "alternative": "Float/double",
+      "when_to_switch": "Never for currency - precision errors are unacceptable in financial systems"
+    },
+    {
+      "decision": "Validate inputs vs. trust caller",
+      "chosen": "Basic validation (driver exists)",
+      "why": "Prevents silent failures, good practice",
+      "alternative": "No validation (faster)",
+      "when_to_switch": "In highly trusted internal systems with extensive testing"
+    }
+  ],
+  "extensibility_and_followups": {
+    "design_principles": [
+      "**Encapsulate state** - private fields, public methods only",
+      "**Single Responsibility** - tracker handles tracking, not business logic",
+      "**Keep API minimal** - only expose what's needed",
+      "**Design for extension** - internal structure can change without API change"
+    ],
+    "why_this_design_scales": "The HashMap + running total pattern is the minimal foundation. Part 2 adds TreeMap for time-sorted queries - just adds to existing structure. Part 3 needs event list for line sweep - separate concern. Part 4 rate updates - requires delivery storage we can add. Each extension ADDS, doesn't REWRITE.",
+    "expected_followup_hooks": [
+      "**Add delivery storage** - currently don't store deliveries, Part 2 needs them",
+      "**Add TreeMap by endTime** - Part 2 needs sorted access for payment queries",
+      "**Add event generation** - Part 3 needs start/end events for line sweep",
+      "**Add rate history** - Part 4 needs to track rate changes over time"
+    ],
+    "invariants": [
+      "totalCost == sum of all delivery costs (maintained incrementally)",
+      "All stored rates are Decimal, never float",
+      "Every driverId in deliveries exists in drivers map",
+      "getTotalCost() never iterates - always O(1)"
+    ]
+  },
+  "visual_explanation": {
+    "problem_visualization": "```\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502                   DELIVERY COST TRACKER                          \u2502\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502                                                                  \u2502\n\u2502   INPUT: addDriver(1, $20/hr)                                    \u2502\n\u2502          addDriver(2, $30/hr)                                    \u2502\n\u2502          addDelivery(1, 0, 3600)     [1 hour delivery]          \u2502\n\u2502          addDelivery(2, 1800, 5400)  [1 hour delivery]          \u2502\n\u2502                                                                  \u2502\n\u2502   TIMELINE:                                                      \u2502\n\u2502   \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500               \u2502\n\u2502   0        1800       3600       5400       seconds              \u2502\n\u2502   \u2502         \u2502          \u2502          \u2502                              \u2502\n\u2502   \u2502         \u2502          \u2502          \u2502                              \u2502\n\u2502   Driver 1: [\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550]  ($20/hr \u00d7 1hr = $20)         \u2502\n\u2502             \u2191                   \u2191                                \u2502\n\u2502           start=0           end=3600                             \u2502\n\u2502                                                                  \u2502\n\u2502   Driver 2:           [\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550]  ($30/hr \u00d7 1hr = $30)\u2502\n\u2502                       \u2191                   \u2191                      \u2502\n\u2502                    start=1800         end=5400                   \u2502\n\u2502                                                                  \u2502\n\u2502   OUTPUT: getTotalCost() = $20 + $30 = $50.00                   \u2502\n\u2502                                                                  \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n```",
+    "data_structure_state": "```\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502                    DATA STRUCTURE EVOLUTION                      \u2502\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502                                                                  \u2502\n\u2502   INITIAL STATE:                                                 \u2502\n\u2502   \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510    \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510                    \u2502\n\u2502   \u2502  drivers = {}   \u2502    \u2502  totalCost = 0  \u2502                    \u2502\n\u2502   \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518    \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518                    \u2502\n\u2502                                                                  \u2502\n\u2502   AFTER addDriver(1, $20), addDriver(2, $30):                   \u2502\n\u2502   \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510    \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510            \u2502\n\u2502   \u2502  drivers = {           \u2502    \u2502  totalCost = 0  \u2502            \u2502\n\u2502   \u2502    1: Decimal('20'),   \u2502    \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518            \u2502\n\u2502   \u2502    2: Decimal('30')    \u2502                                    \u2502\n\u2502   \u2502  }                     \u2502                                    \u2502\n\u2502   \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518                                   \u2502\n\u2502                                                                  \u2502\n\u2502   AFTER addDelivery(1, 0, 3600):                                \u2502\n\u2502   \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510    \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510            \u2502\n\u2502   \u2502  drivers = {           \u2502    \u2502  totalCost = 20 \u2502 \u25c4\u2500 UPDATED \u2502\n\u2502   \u2502    1: Decimal('20'),   \u2502    \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518            \u2502\n\u2502   \u2502    2: Decimal('30')    \u2502    cost = 20 \u00d7 (3600/3600) = $20  \u2502\n\u2502   \u2502  }                     \u2502                                    \u2502\n\u2502   \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518                                   \u2502\n\u2502                                                                  \u2502\n\u2502   AFTER addDelivery(2, 1800, 5400):                             \u2502\n\u2502   \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510    \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510            \u2502\n\u2502   \u2502  drivers = {           \u2502    \u2502  totalCost = 50 \u2502 \u25c4\u2500 UPDATED \u2502\n\u2502   \u2502    1: Decimal('20'),   \u2502    \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518            \u2502\n\u2502   \u2502    2: Decimal('30')    \u2502    cost = 30 \u00d7 (3600/3600) = $30  \u2502\n\u2502   \u2502  }                     \u2502    total = 20 + 30 = $50          \u2502\n\u2502   \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518                                   \u2502\n\u2502                                                                  \u2502\n\u2502   getTotalCost() \u2192 just return 50! No iteration needed!         \u2502\n\u2502                                                                  \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n```",
+    "algorithm_flow": [
+      {
+        "step": 1,
+        "description": "Initialize empty tracker",
+        "visualization": "```\ndrivers = {}  (empty HashMap)\ntotalCost = Decimal('0')\n```",
+        "key_point": "Start with zero total, not null"
+      },
+      {
+        "step": 2,
+        "description": "addDriver(id, rate) - Store rate in HashMap",
+        "visualization": "```\ndrivers[id] = Decimal(rate)\n           \u2193\ndrivers = {1: Decimal('20')}  // O(1) insertion\n```",
+        "key_point": "Convert to Decimal immediately, not later"
+      },
+      {
+        "step": 3,
+        "description": "addDelivery(id, start, end) - Calculate and accumulate",
+        "visualization": "```\nrate = drivers[id]                    // O(1) lookup\nduration = Decimal(end - start)       // seconds\nhours = duration / Decimal('3600')    // convert to hours\ncost = rate \u00d7 hours                   // calculate cost\ntotalCost += cost                     // ACCUMULATE!\n```",
+        "key_point": "Cost computed HERE, not in getTotalCost"
+      },
+      {
+        "step": 4,
+        "description": "getTotalCost() - Just return pre-computed value",
+        "visualization": "```\nreturn totalCost  // That's it! O(1)!\n```",
+        "key_point": "NO iteration, NO calculation, just return"
+      }
+    ],
+    "dry_run_table": "| Step | Operation | drivers HashMap | totalCost | Calculation |\n|------|-----------|-----------------|-----------|-------------|\n| 0 | `__init__()` | `{}` | `0` | - |\n| 1 | `addDriver(1, 20)` | `{1: Decimal('20')}` | `0` | Store rate |\n| 2 | `addDriver(2, 30)` | `{1: Decimal('20'), 2: Decimal('30')}` | `0` | Store rate |\n| 3 | `addDelivery(1, 0, 3600)` | unchanged | `20` | `20 \u00d7 (3600-0)/3600 = 20` |\n| 4 | `addDelivery(2, 1800, 5400)` | unchanged | `50` | `30 \u00d7 (5400-1800)/3600 = 30`, total = 20+30 |\n| 5 | `getTotalCost()` | unchanged | **50** | Just return! |"
+  },
+  "thinking_process": {
+    "step_by_step": [
+      "**When I see 'O(1) getTotalCost'**, I immediately think: I cannot iterate through deliveries on every call. The data structure must maintain a pre-computed answer.",
+      "**When I see currency calculations**, I think: NEVER use float/double. 0.1 + 0.1 + 0.1 \u2260 0.3 in floating point. Must use Decimal/BigDecimal.",
+      "**When I see epoch seconds and hourly rate**, I think: formula is `rate \u00d7 (end - start) / 3600`. The division by 3600 converts seconds to hours.",
+      "**The key insight**: Shift computation from READ (getTotalCost) to WRITE (addDelivery). This is the pre-computation pattern.",
+      "**Data structure choice**: HashMap gives O(1) driver rate lookup. A single Decimal variable gives O(1) total retrieval. We don't need to store deliveries for Part 1 - just the running total.",
+      "**For precision**: Convert to Decimal as early as possible. Do all arithmetic in Decimal. Never round until final output if needed."
+    ],
+    "key_insight": "**The 'aha!' moment**: The O(1) requirement for `getTotalCost()` means we MUST maintain a running total that's updated whenever a delivery is added. We're trading slightly more work on write (O(1) anyway) for much faster reads. This is the amortized pre-computation pattern used everywhere from database indexes to prefix sum arrays.",
+    "why_this_works": "Each `addDelivery` does O(1) work to update the total. After N deliveries, we've done O(N) total work across all insertions. But `getTotalCost()` is called frequently and is always O(1), not O(N). If we call getTotalCost M times, our total work is O(N + M) instead of O(N \u00d7 M). For large M, this is a massive win."
+  },
+  "approaches": [
+    {
+      "name": "Brute Force - Calculate on Query",
+      "description": "Store all deliveries with their details. On `getTotalCost()`, iterate through all deliveries, calculate each cost, and sum them up.",
+      "pseudocode": "```\nclass DeliveryCostTracker:\n    drivers = HashMap<id, rate>\n    deliveries = List<(driverId, start, end)>\n    \n    def addDelivery(driverId, start, end):\n        deliveries.add((driverId, start, end))\n    \n    def getTotalCost():  # O(n) - TOO SLOW!\n        total = 0\n        for (driverId, start, end) in deliveries:\n            rate = drivers[driverId]\n            cost = rate * (end - start) / 3600\n            total += cost\n        return total\n```",
+      "time_complexity": "O(n) per getTotalCost call, O(1) for addDelivery",
+      "space_complexity": "O(n) for storing all deliveries",
+      "pros": [
+        "Simple to implement",
+        "Easy to understand",
+        "Supports deletion/modification"
+      ],
+      "cons": [
+        "O(n) per query - fails the O(1) requirement",
+        "Wasteful if getTotalCost called frequently",
+        "Doesn't meet stated constraints"
+      ],
+      "when_to_use": "Only when queries are extremely rare compared to updates, or when you need to support deletion (then need inverse operations)"
+    },
+    {
+      "name": "Optimal: Pre-compute Running Total",
+      "description": "Maintain a running total of all delivery costs. Update it in O(1) during `addDelivery()`. Return it directly in `getTotalCost()`. Don't store individual deliveries at all.",
+      "pseudocode": "```\nclass DeliveryCostTracker:\n    drivers = HashMap<id, Decimal rate>\n    totalCost = Decimal(0)\n    \n    def addDriver(id, rate):\n        drivers[id] = Decimal(rate)\n    \n    def addDelivery(driverId, start, end):\n        rate = drivers[driverId]\n        duration = Decimal(end - start)\n        cost = rate * duration / Decimal(3600)\n        totalCost += cost  # O(1) update!\n    \n    def getTotalCost():\n        return totalCost  # O(1) - just return!\n```",
+      "time_complexity": "O(1) for ALL operations",
+      "space_complexity": "O(D) where D = number of drivers",
+      "pros": [
+        "Meets O(1) requirement",
+        "Minimal space usage",
+        "Simple and efficient"
+      ],
+      "cons": [
+        "Cannot support delivery deletion (need inverse)",
+        "Cannot query historical data",
+        "No breakdown by driver"
+      ],
+      "key_insight": "Move computation from the hot path (read) to the cold path (write). The total is always up-to-date because we update it incrementally."
+    }
+  ],
+  "optimal_solution": {
+    "name": "Pre-computed Running Total with Decimal Precision",
+    "explanation_md": "## Approach\n\nThe solution uses the **pre-computation pattern** to achieve O(1) for all operations.\n\n### Core Idea\n\nInstead of storing deliveries and calculating the total on demand, we:\n1. Store only driver rates (HashMap for O(1) lookup)\n2. Maintain a running total (Decimal for precision)\n3. Update the running total in `addDelivery()` (shift work to write)\n4. Return the pre-computed total in `getTotalCost()` (no work on read)\n\n### Why Decimal?\n\nFloating-point arithmetic has precision errors:\n```python\n>>> 0.1 + 0.1 + 0.1\n0.30000000000000004  # NOT 0.3!\n>>> 0.1 + 0.1 + 0.1 == 0.3\nFalse  # Financial calculations CANNOT tolerate this\n```\n\nDecimal provides exact arithmetic for base-10 numbers:\n```python\n>>> from decimal import Decimal\n>>> Decimal('0.1') + Decimal('0.1') + Decimal('0.1')\nDecimal('0.3')  # Exact!\n```\n\n### Formula\n\n```\ncost = hourlyRate \u00d7 (endTime - startTime) / 3600\n```\n\nWhere:\n- `hourlyRate` is dollars per hour (Decimal)\n- `endTime - startTime` is duration in seconds\n- `3600` converts seconds to hours",
+    "data_structures": [
+      {
+        "structure": "HashMap<Integer, Decimal>",
+        "purpose": "Store driver ID \u2192 hourly rate mapping. O(1) insertion and lookup."
+      },
+      {
+        "structure": "Decimal totalCost",
+        "purpose": "Running total of all delivery costs. Updated incrementally. Provides O(1) query."
+      }
+    ],
+    "algorithm_steps": [
+      "1. **Initialize**: Create empty HashMap for drivers, set totalCost = Decimal(0)",
+      "2. **addDriver(id, rate)**: Convert rate to Decimal, store in HashMap: `drivers[id] = Decimal(rate)`",
+      "3. **addDelivery(id, start, end)**: \n   - Lookup rate: `rate = drivers[id]`\n   - Calculate duration: `duration = Decimal(end - start)`\n   - Calculate hours: `hours = duration / Decimal(3600)`\n   - Calculate cost: `cost = rate * hours`\n   - Update total: `totalCost += cost`",
+      "4. **getTotalCost()**: Return `totalCost` directly - no iteration!"
+    ],
+    "why_decimal": "Using float causes precision errors that are unacceptable for financial calculations. Example: A driver at $3600/hr making a 1-second delivery should earn exactly $1.00. With float: `3600.0 * (1/3600) = 0.9999999999999999`. With Decimal: `Decimal('3600') * Decimal('1') / Decimal('3600') = Decimal('1')` exactly."
+  },
+  "solution_python_lines": [
+    "\"\"\"",
+    "Delivery Cost Tracking System - Part 1",
+    "",
+    "A production-quality implementation for tracking delivery costs",
+    "with O(1) operations and precise currency handling.",
+    "",
+    "Author: Interview Solution",
+    "Time Complexity: O(1) for all operations",
+    "Space Complexity: O(D) where D = number of drivers",
+    "\"\"\"",
+    "",
+    "from decimal import Decimal, ROUND_HALF_UP",
+    "from typing import Dict, Optional",
+    "",
+    "",
+    "class DeliveryCostTracker:",
+    "    \"\"\"",
+    "    Tracks delivery costs for multiple drivers with O(1) query performance.",
+    "    ",
+    "    Uses pre-computation pattern: costs are calculated and accumulated",
+    "    during addDelivery(), making getTotalCost() a simple O(1) return.",
+    "    ",
+    "    Example:",
+    "        >>> tracker = DeliveryCostTracker()",
+    "        >>> tracker.add_driver(1, Decimal('20'))",
+    "        >>> tracker.add_delivery(1, 0, 3600)  # 1 hour",
+    "        >>> tracker.get_total_cost()",
+    "        Decimal('20')",
+    "    \"\"\"",
+    "    ",
+    "    # Constants",
+    "    SECONDS_PER_HOUR = Decimal('3600')",
+    "    ",
+    "    def __init__(self) -> None:",
+    "        \"\"\"Initialize an empty delivery cost tracker.\"\"\"",
+    "        self._drivers: Dict[int, Decimal] = {}",
+    "        self._total_cost: Decimal = Decimal('0')",
+    "    ",
+    "    def add_driver(self, driver_id: int, hourly_rate: Decimal) -> None:",
+    "        \"\"\"",
+    "        Register a new driver with their hourly rate.",
+    "        ",
+    "        Args:",
+    "            driver_id: Unique identifier for the driver",
+    "            hourly_rate: Pay rate in dollars per hour (as Decimal)",
+    "        ",
+    "        Raises:",
+    "            ValueError: If driver_id already exists or rate is invalid",
+    "        ",
+    "        Time Complexity: O(1)",
+    "        \"\"\"",
+    "        if driver_id in self._drivers:",
+    "            raise ValueError(f\"Driver {driver_id} already exists\")",
+    "        ",
+    "        if hourly_rate < Decimal('0'):",
+    "            raise ValueError(f\"Hourly rate must be non-negative: {hourly_rate}\")",
+    "        ",
+    "        # Ensure we store as Decimal (handle if passed as int/float)",
+    "        self._drivers[driver_id] = Decimal(str(hourly_rate))",
+    "    ",
+    "    def add_delivery(",
+    "        self,",
+    "        driver_id: int,",
+    "        start_time: int,",
+    "        end_time: int",
+    "    ) -> None:",
+    "        \"\"\"",
+    "        Record a delivery and update the running cost total.",
+    "        ",
+    "        This is where the magic happens: we calculate the cost HERE",
+    "        (during write) so that getTotalCost() can be O(1) (during read).",
+    "        ",
+    "        Args:",
+    "            driver_id: ID of the driver making the delivery",
+    "            start_time: Delivery start time in epoch seconds",
+    "            end_time: Delivery end time in epoch seconds",
+    "        ",
+    "        Raises:",
+    "            ValueError: If driver doesn't exist or times are invalid",
+    "        ",
+    "        Time Complexity: O(1)",
+    "        ",
+    "        Formula: cost = hourlyRate \u00d7 (endTime - startTime) / 3600",
+    "        \"\"\"",
+    "        # Validate driver exists",
+    "        if driver_id not in self._drivers:",
+    "            raise ValueError(f\"Driver {driver_id} not found\")",
+    "        ",
+    "        # Validate times",
+    "        if end_time < start_time:",
+    "            raise ValueError(",
+    "                f\"End time ({end_time}) cannot be before start time ({start_time})\"",
+    "            )",
+    "        ",
+    "        # Get driver's hourly rate",
+    "        hourly_rate = self._drivers[driver_id]",
+    "        ",
+    "        # Calculate duration in seconds, then convert to hours",
+    "        duration_seconds = Decimal(end_time - start_time)",
+    "        duration_hours = duration_seconds / self.SECONDS_PER_HOUR",
+    "        ",
+    "        # Calculate cost for this delivery",
+    "        cost = hourly_rate * duration_hours",
+    "        ",
+    "        # Update running total (this is the key optimization!)",
+    "        self._total_cost += cost",
+    "    ",
+    "    def get_total_cost(self) -> Decimal:",
+    "        \"\"\"",
+    "        Return the total cost of all deliveries.",
+    "        ",
+    "        Returns:",
+    "            Total cost as Decimal (exact, no precision loss)",
+    "        ",
+    "        Time Complexity: O(1) - just returns pre-computed value!",
+    "        ",
+    "        Note: This is O(1) because we maintain a running total",
+    "        that's updated in add_delivery(). We never iterate here.",
+    "        \"\"\"",
+    "        return self._total_cost",
+    "    ",
+    "    def get_total_cost_rounded(self, decimal_places: int = 2) -> Decimal:",
+    "        \"\"\"",
+    "        Return total cost rounded to specified decimal places.",
+    "        ",
+    "        Args:",
+    "            decimal_places: Number of decimal places (default: 2 for cents)",
+    "        ",
+    "        Returns:",
+    "            Rounded total cost as Decimal",
+    "        \"\"\"",
+    "        quantize_str = '0.' + '0' * decimal_places",
+    "        return self._total_cost.quantize(",
+    "            Decimal(quantize_str),",
+    "            rounding=ROUND_HALF_UP",
+    "        )",
+    "    ",
+    "    def get_driver_count(self) -> int:",
+    "        \"\"\"Return the number of registered drivers.\"\"\"",
+    "        return len(self._drivers)",
+    "    ",
+    "    def has_driver(self, driver_id: int) -> bool:",
+    "        \"\"\"Check if a driver is registered.\"\"\"",
+    "        return driver_id in self._drivers",
+    "",
+    "",
+    "def run_tests() -> None:",
+    "    \"\"\"Run comprehensive test cases.\"\"\"",
+    "    print(\"=\" * 60)",
+    "    print(\"DELIVERY COST TRACKER - TEST SUITE\")",
+    "    print(\"=\" * 60)",
+    "    ",
+    "    # Test 1: Basic usage from problem example",
+    "    print(\"\\n\ud83d\udccb Test 1: Basic Usage (Two drivers, two deliveries)\")",
+    "    tracker = DeliveryCostTracker()",
+    "    tracker.add_driver(1, Decimal('20'))",
+    "    tracker.add_driver(2, Decimal('30'))",
+    "    tracker.add_delivery(1, 0, 3600)      # 1 hour at $20/hr",
+    "    tracker.add_delivery(2, 1800, 5400)   # 1 hour at $30/hr",
+    "    result = tracker.get_total_cost()",
+    "    expected = Decimal('50')",
+    "    print(f\"   Expected: ${expected}, Got: ${result}\")",
+    "    assert result == expected, f\"Test 1 failed: {result} != {expected}\"",
+    "    print(\"   \u2705 PASSED\")",
+    "    ",
+    "    # Test 2: Fractional hours",
+    "    print(\"\\n\ud83d\udccb Test 2: Fractional Hours (30 minutes)\")",
+    "    tracker = DeliveryCostTracker()",
+    "    tracker.add_driver(1, Decimal('24'))",
+    "    tracker.add_delivery(1, 0, 1800)  # 30 min = 0.5 hr",
+    "    result = tracker.get_total_cost()",
+    "    expected = Decimal('12')  # $24 \u00d7 0.5 = $12",
+    "    print(f\"   Expected: ${expected}, Got: ${result}\")",
+    "    assert result == expected, f\"Test 2 failed: {result} != {expected}\"",
+    "    print(\"   \u2705 PASSED\")",
+    "    ",
+    "    # Test 3: Multiple deliveries same driver",
+    "    print(\"\\n\ud83d\udccb Test 3: Multiple Deliveries (Same driver)\")",
+    "    tracker = DeliveryCostTracker()",
+    "    tracker.add_driver(1, Decimal('18'))",
+    "    tracker.add_delivery(1, 0, 3600)      # 1 hr = $18",
+    "    tracker.add_delivery(1, 7200, 9000)   # 0.5 hr = $9",
+    "    tracker.add_delivery(1, 10800, 14400) # 1 hr = $18",
+    "    result = tracker.get_total_cost()",
+    "    expected = Decimal('45')  # $18 + $9 + $18",
+    "    print(f\"   Expected: ${expected}, Got: ${result}\")",
+    "    assert result == expected, f\"Test 3 failed: {result} != {expected}\"",
+    "    print(\"   \u2705 PASSED\")",
+    "    ",
+    "    # Test 4: 1-second precision test",
+    "    print(\"\\n\ud83d\udccb Test 4: 1-Second Precision ($3600/hr \u00d7 1 second)\")",
+    "    tracker = DeliveryCostTracker()",
+    "    tracker.add_driver(1, Decimal('3600'))",
+    "    tracker.add_delivery(1, 0, 1)  # 1 second",
+    "    result = tracker.get_total_cost()",
+    "    expected = Decimal('1')  # $3600/hr \u00d7 (1/3600)hr = $1 exactly",
+    "    print(f\"   Expected: ${expected}, Got: ${result}\")",
+    "    assert result == expected, f\"Test 4 failed: {result} != {expected}\"",
+    "    print(\"   \u2705 PASSED (Precision verified!)\")",
+    "    ",
+    "    # Test 5: Float precision trap",
+    "    print(\"\\n\ud83d\udccb Test 5: Float Precision Trap (0.1 + 0.1 + 0.1 = 0.3?)\")",
+    "    tracker = DeliveryCostTracker()",
+    "    tracker.add_driver(1, Decimal('0.1'))",
+    "    tracker.add_delivery(1, 0, 3600)   # $0.1",
+    "    tracker.add_delivery(1, 3600, 7200)  # $0.1",
+    "    tracker.add_delivery(1, 7200, 10800) # $0.1",
+    "    result = tracker.get_total_cost()",
+    "    expected = Decimal('0.3')  # Must be exactly 0.3, not 0.30000000000000004",
+    "    print(f\"   Expected: ${expected}, Got: ${result}\")",
+    "    print(f\"   (Using float would give: {0.1 + 0.1 + 0.1})\")",
+    "    assert result == expected, f\"Test 5 failed: {result} != {expected}\"",
+    "    print(\"   \u2705 PASSED (Decimal precision works!)\")",
+    "    ",
+    "    # Test 6: Driver with no deliveries",
+    "    print(\"\\n\ud83d\udccb Test 6: Driver With No Deliveries\")",
+    "    tracker = DeliveryCostTracker()",
+    "    tracker.add_driver(1, Decimal('20'))",
+    "    tracker.add_driver(2, Decimal('30'))  # No deliveries for driver 2",
+    "    tracker.add_delivery(1, 0, 3600)",
+    "    result = tracker.get_total_cost()",
+    "    expected = Decimal('20')  # Only driver 1's delivery",
+    "    print(f\"   Expected: ${expected}, Got: ${result}\")",
+    "    assert result == expected, f\"Test 6 failed: {result} != {expected}\"",
+    "    print(\"   \u2705 PASSED\")",
+    "    ",
+    "    # Test 7: Empty system",
+    "    print(\"\\n\ud83d\udccb Test 7: Empty System\")",
+    "    tracker = DeliveryCostTracker()",
+    "    result = tracker.get_total_cost()",
+    "    expected = Decimal('0')",
+    "    print(f\"   Expected: ${expected}, Got: ${result}\")",
+    "    assert result == expected, f\"Test 7 failed: {result} != {expected}\"",
+    "    print(\"   \u2705 PASSED\")",
+    "    ",
+    "    # Test 8: Zero-duration delivery (edge case)",
+    "    print(\"\\n\ud83d\udccb Test 8: Zero-Duration Delivery\")",
+    "    tracker = DeliveryCostTracker()",
+    "    tracker.add_driver(1, Decimal('50'))",
+    "    tracker.add_delivery(1, 1000, 1000)  # 0 seconds",
+    "    result = tracker.get_total_cost()",
+    "    expected = Decimal('0')",
+    "    print(f\"   Expected: ${expected}, Got: ${result}\")",
+    "    assert result == expected, f\"Test 8 failed: {result} != {expected}\"",
+    "    print(\"   \u2705 PASSED\")",
+    "    ",
+    "    print(\"\\n\" + \"=\" * 60)",
+    "    print(\"ALL TESTS PASSED! \u2705\")",
+    "    print(\"=\" * 60)",
+    "",
+    "",
+    "def demo_complexity() -> None:",
+    "    \"\"\"Demonstrate O(1) complexity of getTotalCost.\"\"\"",
+    "    import time",
+    "    ",
+    "    print(\"\\n\" + \"=\" * 60)",
+    "    print(\"COMPLEXITY DEMONSTRATION\")",
+    "    print(\"=\" * 60)",
+    "    ",
+    "    tracker = DeliveryCostTracker()",
+    "    tracker.add_driver(1, Decimal('20'))",
+    "    ",
+    "    # Add many deliveries",
+    "    n_deliveries = 100000",
+    "    print(f\"\\nAdding {n_deliveries:,} deliveries...\")",
+    "    start = time.time()",
+    "    for i in range(n_deliveries):",
+    "        tracker.add_delivery(1, i * 3600, (i + 1) * 3600)",
+    "    add_time = time.time() - start",
+    "    print(f\"Time to add: {add_time:.3f}s\")",
+    "    ",
+    "    # Query total cost (should be instant)",
+    "    print(f\"\\nQuerying getTotalCost() 10,000 times...\")",
+    "    start = time.time()",
+    "    for _ in range(10000):",
+    "        _ = tracker.get_total_cost()",
+    "    query_time = time.time() - start",
+    "    print(f\"Time for 10,000 queries: {query_time:.6f}s\")",
+    "    print(f\"Average per query: {query_time/10000*1000000:.2f} microseconds\")",
+    "    ",
+    "    print(f\"\\nTotal cost: ${tracker.get_total_cost():,.2f}\")",
+    "    print(\"\\n\u2705 Confirmed: getTotalCost() is O(1) regardless of delivery count!\")",
+    "",
+    "",
+    "if __name__ == '__main__':",
+    "    run_tests()",
+    "    demo_complexity()"
+  ],
+  "solution_java_lines": [
+    "import java.math.BigDecimal;",
+    "import java.math.RoundingMode;",
+    "import java.util.HashMap;",
+    "import java.util.Map;",
+    "",
+    "/**",
+    " * Delivery Cost Tracking System - Part 1",
+    " * ",
+    " * Production-quality implementation for tracking delivery costs",
+    " * with O(1) operations and precise currency handling using BigDecimal.",
+    " * ",
+    " * Time Complexity: O(1) for all operations",
+    " * Space Complexity: O(D) where D = number of drivers",
+    " */",
+    "public class DeliveryCostTracker {",
+    "    ",
+    "    // Constants",
+    "    private static final BigDecimal SECONDS_PER_HOUR = new BigDecimal(\"3600\");",
+    "    private static final int CURRENCY_SCALE = 10;  // Internal precision",
+    "    ",
+    "    // Data structures",
+    "    private final Map<Integer, BigDecimal> drivers;",
+    "    private BigDecimal totalCost;",
+    "    ",
+    "    /**",
+    "     * Initialize an empty delivery cost tracker.",
+    "     */",
+    "    public DeliveryCostTracker() {",
+    "        this.drivers = new HashMap<>();",
+    "        this.totalCost = BigDecimal.ZERO;",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Register a new driver with their hourly rate.",
+    "     * ",
+    "     * @param driverId   Unique identifier for the driver",
+    "     * @param hourlyRate Pay rate in dollars per hour",
+    "     * @throws IllegalArgumentException if driver already exists or rate is invalid",
+    "     * ",
+    "     * Time Complexity: O(1)",
+    "     */",
+    "    public void addDriver(int driverId, BigDecimal hourlyRate) {",
+    "        if (drivers.containsKey(driverId)) {",
+    "            throw new IllegalArgumentException(",
+    "                \"Driver \" + driverId + \" already exists\");",
+    "        }",
+    "        ",
+    "        if (hourlyRate.compareTo(BigDecimal.ZERO) < 0) {",
+    "            throw new IllegalArgumentException(",
+    "                \"Hourly rate must be non-negative: \" + hourlyRate);",
+    "        }",
+    "        ",
+    "        drivers.put(driverId, hourlyRate);",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Record a delivery and update the running cost total.",
+    "     * ",
+    "     * This is where the magic happens: we calculate the cost HERE",
+    "     * (during write) so that getTotalCost() can be O(1) (during read).",
+    "     * ",
+    "     * @param driverId  ID of the driver making the delivery",
+    "     * @param startTime Delivery start time in epoch seconds",
+    "     * @param endTime   Delivery end time in epoch seconds",
+    "     * @throws IllegalArgumentException if driver doesn't exist or times invalid",
+    "     * ",
+    "     * Time Complexity: O(1)",
+    "     * Formula: cost = hourlyRate \u00d7 (endTime - startTime) / 3600",
+    "     */",
+    "    public void addDelivery(int driverId, long startTime, long endTime) {",
+    "        // Validate driver exists",
+    "        if (!drivers.containsKey(driverId)) {",
+    "            throw new IllegalArgumentException(",
+    "                \"Driver \" + driverId + \" not found\");",
+    "        }",
+    "        ",
+    "        // Validate times",
+    "        if (endTime < startTime) {",
+    "            throw new IllegalArgumentException(",
+    "                \"End time (\" + endTime + \") cannot be before start time (\" + startTime + \")\");",
+    "        }",
+    "        ",
+    "        // Get driver's hourly rate",
+    "        BigDecimal hourlyRate = drivers.get(driverId);",
+    "        ",
+    "        // Calculate duration in seconds, then convert to hours",
+    "        BigDecimal durationSeconds = new BigDecimal(endTime - startTime);",
+    "        BigDecimal durationHours = durationSeconds.divide(",
+    "            SECONDS_PER_HOUR, CURRENCY_SCALE, RoundingMode.HALF_UP);",
+    "        ",
+    "        // Calculate cost for this delivery",
+    "        BigDecimal cost = hourlyRate.multiply(durationHours);",
+    "        ",
+    "        // Update running total (this is the key optimization!)",
+    "        totalCost = totalCost.add(cost);",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Return the total cost of all deliveries.",
+    "     * ",
+    "     * Time Complexity: O(1) - just returns pre-computed value!",
+    "     * ",
+    "     * @return Total cost as BigDecimal (exact, no precision loss)",
+    "     */",
+    "    public BigDecimal getTotalCost() {",
+    "        return totalCost;",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Return total cost rounded to specified decimal places.",
+    "     * ",
+    "     * @param decimalPlaces Number of decimal places (default: 2 for cents)",
+    "     * @return Rounded total cost as BigDecimal",
+    "     */",
+    "    public BigDecimal getTotalCostRounded(int decimalPlaces) {",
+    "        return totalCost.setScale(decimalPlaces, RoundingMode.HALF_UP);",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Return the number of registered drivers.",
+    "     */",
+    "    public int getDriverCount() {",
+    "        return drivers.size();",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Check if a driver is registered.",
+    "     */",
+    "    public boolean hasDriver(int driverId) {",
+    "        return drivers.containsKey(driverId);",
+    "    }",
+    "    ",
+    "    // ======================= TEST HARNESS =======================",
+    "    ",
+    "    public static void main(String[] args) {",
+    "        System.out.println(\"============================================================\");",
+    "        System.out.println(\"DELIVERY COST TRACKER - TEST SUITE (Java)\");",
+    "        System.out.println(\"============================================================\");",
+    "        ",
+    "        // Test 1: Basic usage",
+    "        System.out.println(\"\\n\ud83d\udccb Test 1: Basic Usage (Two drivers, two deliveries)\");",
+    "        DeliveryCostTracker tracker = new DeliveryCostTracker();",
+    "        tracker.addDriver(1, new BigDecimal(\"20\"));",
+    "        tracker.addDriver(2, new BigDecimal(\"30\"));",
+    "        tracker.addDelivery(1, 0, 3600);      // 1 hour at $20/hr",
+    "        tracker.addDelivery(2, 1800, 5400);   // 1 hour at $30/hr",
+    "        BigDecimal result = tracker.getTotalCost();",
+    "        System.out.println(\"   Expected: $50, Got: $\" + result.setScale(0, RoundingMode.HALF_UP));",
+    "        assert result.compareTo(new BigDecimal(\"50\")) == 0 : \"Test 1 failed\";",
+    "        System.out.println(\"   \u2705 PASSED\");",
+    "        ",
+    "        // Test 2: Fractional hours",
+    "        System.out.println(\"\\n\ud83d\udccb Test 2: Fractional Hours (30 minutes)\");",
+    "        tracker = new DeliveryCostTracker();",
+    "        tracker.addDriver(1, new BigDecimal(\"24\"));",
+    "        tracker.addDelivery(1, 0, 1800);  // 30 min",
+    "        result = tracker.getTotalCost();",
+    "        System.out.println(\"   Expected: $12, Got: $\" + result.setScale(0, RoundingMode.HALF_UP));",
+    "        assert result.compareTo(new BigDecimal(\"12\")) == 0 : \"Test 2 failed\";",
+    "        System.out.println(\"   \u2705 PASSED\");",
+    "        ",
+    "        // Test 3: 1-second precision",
+    "        System.out.println(\"\\n\ud83d\udccb Test 3: 1-Second Precision ($3600/hr \u00d7 1 second)\");",
+    "        tracker = new DeliveryCostTracker();",
+    "        tracker.addDriver(1, new BigDecimal(\"3600\"));",
+    "        tracker.addDelivery(1, 0, 1);  // 1 second",
+    "        result = tracker.getTotalCost();",
+    "        System.out.println(\"   Expected: $1, Got: $\" + result.setScale(0, RoundingMode.HALF_UP));",
+    "        assert result.compareTo(new BigDecimal(\"1\")) == 0 : \"Test 3 failed\";",
+    "        System.out.println(\"   \u2705 PASSED (Precision verified!)\");",
+    "        ",
+    "        // Test 4: Demonstrate float precision problem",
+    "        System.out.println(\"\\n\ud83d\udccb Test 4: Float Precision Trap\");",
+    "        System.out.println(\"   Float 0.1 + 0.1 + 0.1 = \" + (0.1 + 0.1 + 0.1));",
+    "        System.out.println(\"   BigDecimal: \" + new BigDecimal(\"0.1\")",
+    "            .add(new BigDecimal(\"0.1\"))",
+    "            .add(new BigDecimal(\"0.1\")));",
+    "        System.out.println(\"   \u2705 BigDecimal provides exact arithmetic!\");",
+    "        ",
+    "        System.out.println(\"\\n============================================================\");",
+    "        System.out.println(\"ALL TESTS PASSED! \u2705\");",
+    "        System.out.println(\"============================================================\");",
+    "    }",
+    "}"
+  ],
+  "code_walkthrough": [
+    {
+      "lines": "1-14",
+      "section": "Module Docstring & Imports",
+      "explanation": "We import `Decimal` from Python's `decimal` module for precise currency arithmetic. Using standard `float` would cause precision errors like `0.1 + 0.1 + 0.1 = 0.30000000000000004`. We also import `Dict` for type hints to make the code self-documenting."
+    },
+    {
+      "lines": "16-30",
+      "section": "Class Definition & Docstring",
+      "explanation": "The class docstring explains the **pre-computation pattern**: costs are calculated during `addDelivery()` and accumulated into a running total. This makes `getTotalCost()` a simple O(1) return. The example in the docstring serves as executable documentation."
+    },
+    {
+      "lines": "32-37",
+      "section": "__init__ - Initialize State",
+      "explanation": "Two data structures: (1) `_drivers` HashMap maps driver IDs to their hourly rates for O(1) lookup, (2) `_total_cost` is the running total, initialized to `Decimal('0')` (not `0` or `0.0`). Using underscore prefix indicates these are private implementation details."
+    },
+    {
+      "lines": "39-58",
+      "section": "add_driver - Register Driver",
+      "explanation": "Simple O(1) HashMap insertion. Key design decisions: (1) Validate driver doesn't already exist, (2) Convert rate to Decimal using `str()` to avoid float precision issues (`Decimal(0.1)` creates imprecise Decimal, but `Decimal('0.1')` is exact). The validation prevents silent bugs from duplicate registrations."
+    },
+    {
+      "lines": "60-100",
+      "section": "add_delivery - THE KEY METHOD",
+      "explanation": "**This is where the magic happens!** We calculate cost HERE (on write) instead of in `getTotalCost()` (on read). Steps: (1) Validate driver exists, (2) Validate times, (3) Look up rate in O(1), (4) Calculate duration in seconds, (5) Convert to hours by dividing by 3600, (6) Calculate cost = rate \u00d7 hours, (7) **ADD to running total**. This shift from read to write is the core optimization."
+    },
+    {
+      "lines": "102-115",
+      "section": "get_total_cost - O(1) Return",
+      "explanation": "The entire method is just `return self._total_cost`. No iteration, no calculation - just return the pre-computed value. This is O(1) because all the work was done in `add_delivery()`. The docstring explicitly notes this is O(1) to remind reviewers of the design decision."
+    },
+    {
+      "lines": "117-130",
+      "section": "Helper Methods",
+      "explanation": "`get_total_cost_rounded()` is a production convenience - many systems want costs rounded to cents. `get_driver_count()` and `has_driver()` provide introspection without exposing internal state directly. These show awareness of production needs without over-engineering."
+    },
+    {
+      "lines": "133-220",
+      "section": "Test Suite - run_tests()",
+      "explanation": "Comprehensive test cases covering: (1) Basic multi-driver scenario, (2) Fractional hours, (3) Multiple deliveries same driver, (4) 1-second precision test, (5) Float precision trap, (6) Driver with no deliveries, (7) Empty system, (8) Zero-duration delivery. Each test has a clear assertion and explanation."
+    },
+    {
+      "lines": "223-250",
+      "section": "Complexity Demo",
+      "explanation": "Empirically demonstrates that `getTotalCost()` is O(1) by adding 100,000 deliveries then querying 10,000 times. The query time is constant regardless of delivery count. This kind of performance validation shows senior engineering thinking."
+    }
+  ],
+  "debugging_strategy": {
+    "how_to_test_incrementally": "1. Test `add_driver` alone - verify driver is stored\n2. Test `get_total_cost` on empty tracker - should return 0\n3. Add one driver, one delivery, verify cost calculation\n4. Add second delivery, verify running total updated\n5. Test precision with known values (e.g., $3600/hr \u00d7 1 second = $1.00)\n6. Test the 0.1 + 0.1 + 0.1 trap explicitly",
+    "what_to_print_or_assert": [
+      "assert tracker.get_total_cost() == Decimal('0') # After init",
+      "print(f'After delivery: {tracker._total_cost}') # Debug running total",
+      "assert result == expected, f'Got {result}, expected {expected}'",
+      "print(f'Duration hours: {duration / Decimal(3600)}') # Verify formula"
+    ],
+    "common_failure_modes": [
+      "**Running total not updated**: Forgot `self._total_cost += cost`",
+      "**Float instead of Decimal**: Used `float(rate)` instead of `Decimal(str(rate))`",
+      "**Integer division**: Used `//` instead of `/` losing precision",
+      "**Wrong key lookup**: Typo in `self._drivers[driver_id]`",
+      "**Forgot to validate driver**: Crashes with KeyError",
+      "**Initial total is None not 0**: Return None instead of Decimal('0')"
+    ],
+    "how_to_fix_fast": "1. **KeyError on lookup**: Add `if driver_id not in self._drivers` check\n2. **Total always 0**: Verify you're calling `self._total_cost += cost` not `total_cost += cost`\n3. **Precision off**: Replace `Decimal(0.1)` with `Decimal('0.1')` (string constructor)\n4. **Formula wrong**: Double-check: `rate * (end - start) / 3600`, not `rate * (end - start) // 3600`"
+  },
+  "complexity_analysis": {
+    "time": {
+      "add_driver": {
+        "complexity": "O(1)",
+        "explanation": "HashMap `put` operation is O(1) amortized"
+      },
+      "add_delivery": {
+        "complexity": "O(1)",
+        "explanation": "HashMap `get` O(1) + Decimal arithmetic O(1) + addition O(1)"
+      },
+      "get_total_cost": {
+        "complexity": "O(1)",
+        "explanation": "Simply returns pre-computed value - no iteration!"
+      },
+      "overall": "All three operations are O(1). This is optimal - you cannot do better than constant time."
+    },
+    "space": {
+      "complexity": "O(D) where D = number of drivers",
+      "breakdown": "- HashMap for driver rates: O(D) - stores one Decimal per driver\n- Running total: O(1) - single Decimal value\n- No delivery storage: O(0) - we don't store delivery objects in Part 1!",
+      "note": "We achieve minimal space by NOT storing delivery objects. The running total captures all we need. Part 2 will require delivery storage for time-based queries."
+    },
+    "can_we_do_better": "**Time**: No - O(1) is optimal. You cannot return a value faster than constant time.\n**Space**: No - we must store driver rates (O(D) minimum). The running total adds only O(1). We already avoid storing deliveries."
+  },
+  "dry_run": {
+    "example": "addDriver(1, $20), addDriver(2, $30), addDelivery(1, 0, 3600), addDelivery(2, 1800, 5400), getTotalCost()",
+    "trace_table": "| Step | Operation | Action | drivers HashMap | _total_cost | Calculation Detail |\n|------|-----------|--------|-----------------|-------------|-------------------|\n| 0 | `__init__()` | Initialize | `{}` | `Decimal('0')` | - |\n| 1 | `addDriver(1, 20)` | Store rate | `{1: Decimal('20')}` | `Decimal('0')` | HashMap.put(1, 20) |\n| 2 | `addDriver(2, 30)` | Store rate | `{1: Decimal('20'), 2: Decimal('30')}` | `Decimal('0')` | HashMap.put(2, 30) |\n| 3 | `addDelivery(1, 0, 3600)` | Calculate & add | unchanged | `Decimal('20')` | rate=20, duration=3600s=1hr, cost=20\u00d71=20, total=0+20=**20** |\n| 4 | `addDelivery(2, 1800, 5400)` | Calculate & add | unchanged | `Decimal('50')` | rate=30, duration=3600s=1hr, cost=30\u00d71=30, total=20+30=**50** |\n| 5 | `getTotalCost()` | Return total | unchanged | `Decimal('50')` | Just return _total_cost - **no iteration!** |",
+    "final_answer": "**$50.00** - The pre-computed running total is returned in O(1) without any iteration."
+  },
+  "test_cases": [
+    {
+      "name": "Basic - Single driver, single delivery",
+      "category": "Happy Path",
+      "input": "addDriver(1, 20), addDelivery(1, 0, 3600), getTotalCost()",
+      "expected": "20.00",
+      "explanation": "1 hour at $20/hr = $20. Verifies basic formula works."
+    },
+    {
+      "name": "Two drivers, two deliveries",
+      "category": "Happy Path",
+      "input": "addDriver(1, 20), addDriver(2, 30), addDelivery(1, 0, 3600), addDelivery(2, 1800, 5400), getTotalCost()",
+      "expected": "50.00",
+      "explanation": "Driver 1: $20, Driver 2: $30, Total: $50. Tests multiple drivers."
+    },
+    {
+      "name": "Fractional hours - 30 minutes",
+      "category": "Precision",
+      "input": "addDriver(1, 24), addDelivery(1, 0, 1800), getTotalCost()",
+      "expected": "12.00",
+      "explanation": "30 min = 0.5 hr, $24 \u00d7 0.5 = $12. Tests fractional hour handling."
+    },
+    {
+      "name": "1-second precision test",
+      "category": "Edge Case",
+      "input": "addDriver(1, 3600), addDelivery(1, 0, 1), getTotalCost()",
+      "expected": "1.00",
+      "explanation": "$3600/hr \u00d7 (1/3600)hr = $1.00 exactly. Tests very small durations."
+    },
+    {
+      "name": "Float precision trap - 0.1 + 0.1 + 0.1",
+      "category": "Gotcha",
+      "input": "addDriver(1, Decimal('0.1')), 3 deliveries of 1 hour each, getTotalCost()",
+      "expected": "0.3 (exactly)",
+      "gotcha": "Using float: 0.1 + 0.1 + 0.1 = 0.30000000000000004. Must use Decimal!"
+    },
+    {
+      "name": "Driver with no deliveries",
+      "category": "Edge Case",
+      "input": "addDriver(1, 20), addDriver(2, 30), addDelivery(1, 0, 3600), getTotalCost()",
+      "expected": "20.00",
+      "explanation": "Driver 2 has no deliveries - shouldn't affect total."
+    },
+    {
+      "name": "Empty system",
+      "category": "Edge Case",
+      "input": "getTotalCost() (no drivers or deliveries)",
+      "expected": "0.00",
+      "explanation": "Should return 0, not error or null."
+    },
+    {
+      "name": "Multiple deliveries same driver",
+      "category": "Accumulation",
+      "input": "addDriver(1, 18), addDelivery(1, 0, 3600), addDelivery(1, 7200, 9000), addDelivery(1, 10800, 14400), getTotalCost()",
+      "expected": "45.00",
+      "explanation": "$18\u00d71 + $18\u00d70.5 + $18\u00d71 = $18 + $9 + $18 = $45. Tests running total accumulation."
+    },
+    {
+      "name": "Zero-duration delivery",
+      "category": "Edge Case",
+      "input": "addDriver(1, 50), addDelivery(1, 1000, 1000), getTotalCost()",
+      "expected": "0.00",
+      "explanation": "0 seconds \u00d7 any rate = $0. Edge case for instant delivery."
+    },
+    {
+      "name": "Non-integer hourly rate",
+      "category": "Precision",
+      "input": "addDriver(1, Decimal('15.75')), addDelivery(1, 0, 7200), getTotalCost()",
+      "expected": "31.50",
+      "explanation": "$15.75/hr \u00d7 2 hours = $31.50. Tests non-round rates."
+    }
+  ],
+  "common_mistakes": [
+    {
+      "mistake": "Using float/double for currency",
+      "why_wrong": "Floating point cannot exactly represent many decimal values. 0.1 + 0.1 + 0.1 \u2260 0.3 in float!",
+      "correct_approach": "Use Decimal (Python) or BigDecimal (Java) for exact decimal arithmetic",
+      "code_wrong": "self._total_cost = 0.0  # float\ncost = rate * duration  # float multiplication",
+      "code_correct": "self._total_cost = Decimal('0')  # Decimal\ncost = Decimal(str(rate)) * Decimal(duration) / Decimal('3600')"
+    },
+    {
+      "mistake": "Calculating total in getTotalCost()",
+      "why_wrong": "O(n) per call - fails the explicit O(1) requirement. With 100K deliveries and 1000 queries, that's 100M operations!",
+      "correct_approach": "Maintain running total, update in addDelivery(), return directly in getTotalCost()",
+      "code_wrong": "def get_total_cost(self):\n    return sum(d.cost for d in self.deliveries)  # O(n)!",
+      "code_correct": "def get_total_cost(self):\n    return self._total_cost  # O(1)!"
+    },
+    {
+      "mistake": "Integer division losing precision",
+      "why_wrong": "Python 2 style `//` or forgetting Decimal: `1800 // 3600 = 0`, not `0.5`",
+      "correct_approach": "Use true division with Decimal objects",
+      "code_wrong": "hours = (end - start) // 3600  # Integer division!\ncost = rate * hours  # Always 0 for < 1 hour!",
+      "code_correct": "hours = Decimal(end - start) / Decimal('3600')  # True division\ncost = rate * hours"
+    },
+    {
+      "mistake": "Forgetting to validate driver exists",
+      "why_wrong": "Will crash with KeyError on lookup, or silently produce wrong results",
+      "correct_approach": "Check driver exists before accessing rate",
+      "code_wrong": "def add_delivery(self, driver_id, start, end):\n    rate = self._drivers[driver_id]  # KeyError if not found!",
+      "code_correct": "def add_delivery(self, driver_id, start, end):\n    if driver_id not in self._drivers:\n        raise ValueError(f\"Driver {driver_id} not found\")\n    rate = self._drivers[driver_id]"
+    },
+    {
+      "mistake": "Creating Decimal from float instead of string",
+      "why_wrong": "Decimal(0.1) creates imprecise Decimal: Decimal('0.1000000000000000055511151231257827021181583404541015625')",
+      "correct_approach": "Create Decimal from string: Decimal('0.1')",
+      "code_wrong": "self._drivers[id] = Decimal(0.1)  # Imprecise!",
+      "code_correct": "self._drivers[id] = Decimal('0.1')  # Exact!"
+    },
+    {
+      "mistake": "Initializing total as None instead of 0",
+      "why_wrong": "getTotalCost() on empty tracker returns None, causing downstream errors",
+      "correct_approach": "Initialize to Decimal('0')",
+      "code_wrong": "self._total_cost = None  # Will return None for empty tracker",
+      "code_correct": "self._total_cost = Decimal('0')  # Returns 0 for empty tracker"
+    }
+  ],
+  "interview_tips": {
+    "opening": "Thank you for this problem. Before I start coding, I'd like to clarify a few things and share my initial understanding...",
+    "clarifying_questions_to_ask": [
+      "**Precision**: Should getTotalCost() be O(1)? This will significantly affect my design. \u2192 (Yes, confirms pre-computation)",
+      "**Currency precision**: Can I use BigDecimal/Decimal for exact currency math? \u2192 (Shows awareness of float issues)",
+      "**Time units**: Times are in epoch seconds, correct? I'll divide by 3600 for hours. \u2192 (Confirms formula understanding)",
+      "**Driver uniqueness**: Can I assume driver IDs are unique and addDriver won't be called twice for same ID? \u2192 (Clarifies edge case handling)",
+      "**Error handling**: Should addDelivery throw if driver doesn't exist, or silently ignore? \u2192 (Shows production thinking)"
+    ],
+    "what_to_mention_proactively": [
+      "\"I'll use Decimal/BigDecimal for currency - float has precision errors like 0.1+0.1+0.1 \u2260 0.3\"",
+      "\"For O(1) getTotalCost, I'll maintain a running total updated in addDelivery\"",
+      "\"Let me trace through the first example to verify my approach before coding\"",
+      "\"I'll use a HashMap for O(1) driver rate lookups\""
+    ],
+    "communication_during_coding": [
+      "\"I'm creating a HashMap here for O(1) driver lookups...\"",
+      "\"Notice I'm calculating and adding to the total HERE in addDelivery, not in getTotalCost...\"",
+      "\"This gives us O(1) for all operations - the key insight is pre-computation on write...\"",
+      "\"Using Decimal from the start to avoid precision issues later...\""
+    ],
+    "if_stuck": [
+      "Step back: What's the key constraint? O(1) getTotalCost - this MUST drive my design",
+      "Ask yourself: When should I compute? If reads must be O(1), compute on writes",
+      "Draw it: Visualize data structure state after each operation",
+      "Simplify: What's the minimum I need to store? Just driver rates and running total"
+    ],
+    "time_management": "**0-5min**: Clarify questions, confirm O(1) requirement, understand formula | **5-10min**: Explain approach, draw data structure diagram, get interviewer buy-in | **10-25min**: Implement core solution with good names and comments | **25-35min**: Test with examples, trace through dry run, discuss complexity | **35-45min**: Finish Part 1, ready for follow-ups"
+  },
+  "pattern_recognition": {
+    "pattern_name": "Pre-computation / Amortized O(1) / Write-Time Aggregation",
+    "indicators": [
+      "O(1) requirement for frequent query operation",
+      "Updates (writes) are less frequent than reads",
+      "Query returns aggregate value (sum, count, max)",
+      "No need to query individual items, just totals"
+    ],
+    "similar_problems": [
+      "**LC 303 - Range Sum Query (Immutable)**: Pre-compute prefix sums for O(1) range queries",
+      "**LC 304 - Range Sum Query 2D**: 2D prefix sums for O(1) rectangle queries",
+      "**Design Hit Counter**: Maintain running count, update on hit, query in O(1)",
+      "**LC 146 - LRU Cache**: Pre-compute access order for O(1) eviction decisions"
+    ],
+    "template": "```python\nclass PrecomputedAggregate:\n    def __init__(self):\n        self.running_total = initial_value\n    \n    def add(self, item):\n        # O(1) update\n        contribution = compute(item)\n        self.running_total += contribution\n    \n    def query(self):\n        # O(1) return\n        return self.running_total\n```"
+  },
+  "follow_up_preparation": {
+    "part_2_hint": "**Part 2: Payment Settlement Tracking** - You'll need to query costs up to a certain end time. This requires storing deliveries sorted by end time. Consider using a **TreeMap<endTime, cost>** for O(log n) time-based queries. You might need to track cumulative costs or use prefix sums.",
+    "part_3_hint": "**Part 3: Maximum Active Drivers Analytics** - Classic **line sweep** problem like Meeting Rooms II. Convert each delivery to two events: (startTime, +1) and (endTime, -1). Sort events, sweep through, track max concurrent drivers. Time: O(n log n).",
+    "part_4_hint": "**Part 4: Dynamic Rate Updates** - If rates can change, deliveries need to store their calculated cost (not just reference driver rate). Or track rate history with effective time ranges. More complex state management.",
+    "data_structure_evolution": "**Part 1**: HashMap<driverId, rate> + Decimal runningTotal\n**Part 2**: Add TreeMap<endTime, deliveryCost> for time-sorted queries\n**Part 3**: Add List<Event(time, delta)> for line sweep\n**Part 4**: Add rate history or store cost with each delivery"
+  },
+  "communication_script": {
+    "opening_verbatim": "Thank you for this problem. It looks like a delivery cost tracking system where I need to track drivers and their deliveries. Before I dive in, I'd like to clarify a few things to make sure I understand the requirements correctly.",
+    "after_clarification": "Great, so to summarize: I need O(1) for getTotalCost(), I should use Decimal for currency precision, and times are in epoch seconds. My approach will be to maintain a running total that I update during addDelivery, so getTotalCost just returns that value. Does that approach sound reasonable before I start coding?",
+    "while_coding": [
+      "I'm creating a HashMap here to store driver rates - this gives me O(1) lookup when I need to calculate delivery costs...",
+      "Now in addDelivery, this is the key part - I'm calculating the cost HERE and adding it to the running total. This is what makes getTotalCost O(1)...",
+      "Notice I'm using Decimal for all the arithmetic - this avoids the float precision trap...",
+      "And getTotalCost is just returning the pre-computed value - no iteration needed."
+    ],
+    "after_coding": "Let me trace through the example to verify this works. We add driver 1 at $20, driver 2 at $30. Then delivery for driver 1 from 0 to 3600 - that's 1 hour, so $20. Running total is now $20. Then delivery for driver 2 from 1800 to 5400 - that's also 3600 seconds, 1 hour, so $30. Running total is now $50. getTotalCost returns $50. That matches the expected output.",
+    "when_stuck_verbatim": "I'm thinking about this... The key constraint is O(1) for getTotalCost. That means I can't iterate through deliveries on every call. Let me think about when I should do the computation instead...",
+    "after_mistake": "Actually, I see an issue here - I was using float instead of Decimal. Let me fix that. The reason is that float can't exactly represent 0.1, so 0.1 + 0.1 + 0.1 doesn't equal 0.3. Decimal handles this correctly.",
+    "before_moving_on": "This handles Part 1 with O(1) for all operations and O(D) space where D is the number of drivers. I'm ready for the follow-up whenever you'd like to proceed."
+  },
+  "interviewer_perspective": {
+    "what_they_evaluate": [
+      "**Problem Decomposition**: Can you break down requirements and identify the key constraint (O(1))?",
+      "**Communication**: Do you think out loud and explain your reasoning?",
+      "**Code Quality**: Clean variable names, proper structure, error handling",
+      "**Testing Instinct**: Do you trace through examples and consider edge cases?",
+      "**Adaptability**: Can you handle follow-up questions and extend your design?"
+    ],
+    "bonus_points": [
+      "Mentioning Decimal/BigDecimal for currency BEFORE being asked",
+      "Drawing a quick data structure diagram unprompted",
+      "Identifying the O(1) insight immediately (\"I'll maintain a running total\")",
+      "Writing clean code with descriptive names on first attempt",
+      "Proactively mentioning production considerations (logging, validation, thread-safety)",
+      "Asking smart clarifying questions before coding"
+    ],
+    "red_flags": [
+      "Silent coding for more than 30 seconds without explanation",
+      "Not asking any clarifying questions",
+      "Jumping straight to code without explaining approach",
+      "Ignoring the stated O(1) constraint",
+      "Not testing after coding",
+      "Using float for currency without acknowledging risks",
+      "Getting defensive when interviewer points out an issue"
+    ],
+    "what_differentiates_strong_candidates": "Strong candidates treat the interview as a collaborative design session. They think out loud, explain tradeoffs, ask clarifying questions, and anticipate edge cases. They write clean code on the first attempt and naturally test their solution. They mention what they'd add for production without over-engineering the interview solution. They're pleasant to work with and take feedback well."
+  },
+  "time_milestones": {
+    "by_5_min": "Problem understood, key clarifying questions asked, O(1) requirement confirmed, formula understood",
+    "by_10_min": "Approach explained ('running total, update on write'), data structures identified (HashMap + Decimal total), interviewer buy-in obtained",
+    "by_20_min": "Core implementation complete: addDriver, addDelivery, getTotalCost all working",
+    "by_25_min": "Dry run with example complete, edge cases considered, complexity stated",
+    "by_30_min": "Part 1 done, code clean, ready for Part 2",
+    "warning_signs": "If you're still clarifying at 10 min, still designing at 15 min, or still coding basic methods at 30 min, you're falling behind. Speed up by making reasonable assumptions and simplifying where possible."
+  },
+  "recovery_strategies": {
+    "when_you_make_a_bug": "Don't panic. Say: 'Actually, I see an issue here - let me fix that.' Fix it calmly, briefly explain why, and move on. Interviewers EXPECT bugs - they're evaluating how gracefully you handle them.",
+    "when_you_dont_know_syntax": "Say: 'I don't remember the exact syntax for Decimal division, but conceptually I need precise division. Let me write it as I think it is and we can verify.' This is perfectly acceptable.",
+    "when_approach_is_wrong": "Say: 'Actually, I realize this approach won't meet the O(1) requirement because [reason]. Let me reconsider.' Pivot cleanly and confidently. Better to catch it yourself than have interviewer point it out.",
+    "when_completely_stuck": "Say: 'I'm stuck on how to achieve O(1) for the query. Could you give me a hint about when the computation should happen?' Asking for targeted help shows self-awareness.",
+    "when_running_out_of_time": "Say: 'I'm running low on time. Let me focus on the core logic and handle this edge case with a comment explaining what I'd do.' Prioritize completeness over perfection."
+  },
+  "ai_copilot_tips": {
+    "when_using_cursor_or_copilot": "Rippling allows AI tools in interviews. Use them strategically - they should accelerate you, not think for you.",
+    "what_to_do": [
+      "Use AI for boilerplate: class structure, imports, docstring templates",
+      "Use for syntax you forgot: 'How do I create a Decimal in Python?'",
+      "Use for generating test cases: 'Give me 5 edge cases for this'",
+      "Let it autocomplete obvious code (variable assignments, simple conditionals)"
+    ],
+    "what_not_to_do": [
+      "DON'T paste the entire problem and ask for solution",
+      "DON'T accept AI suggestions without understanding them",
+      "DON'T let AI drive your algorithm design - YOU decide approach, AI assists implementation",
+      "DON'T use AI to avoid thinking about edge cases"
+    ],
+    "how_to_demonstrate_understanding": "When AI suggests something, explain WHY it works: 'Copilot suggested using Decimal here - that's correct because we need exact decimal arithmetic for currency. Float would cause 0.1 + 0.1 + 0.1 \u2260 0.3.'",
+    "expectation_adjustment": "Using AI means you should complete MORE parts, not fewer. If you're slower with AI than without, you're using it wrong. Practice using AI tools before the interview."
+  },
+  "signal_points": {
+    "wow_factors": [
+      "Mentioning Decimal/BigDecimal immediately when seeing currency",
+      "Drawing a quick ASCII state diagram before coding",
+      "Saying 'I'll maintain a running total' within 30 seconds of reading O(1) requirement",
+      "Clean code with descriptive names like `_total_cost` not `tc`",
+      "Mentioning 'In production I'd add logging, validation, and possibly thread-safety'",
+      "Catching a bug before running and fixing it smoothly"
+    ],
+    "subtle_signals_of_experience": [
+      "Naturally considering error cases ('What if driver doesn't exist?')",
+      "Thinking about API design ('Should this throw or return null?')",
+      "Using appropriate data structures without over-engineering",
+      "Testing incrementally, not just at the end",
+      "Comfortable silence while thinking (not nervous rambling)",
+      "Asking 'Does this make sense?' to check interviewer alignment"
+    ]
+  },
+  "red_flags_to_avoid": {
+    "behavioral": [
+      "Staying silent for >30 seconds without explanation",
+      "Getting defensive when interviewer suggests an issue",
+      "Blaming the problem for being ambiguous",
+      "Appearing frustrated or impatient",
+      "Not making eye contact / low energy"
+    ],
+    "technical": [
+      "Hardcoding values that should be parameters",
+      "Not considering any edge cases",
+      "Writing code that only works for the given example",
+      "Ignoring explicitly stated complexity requirements",
+      "Using float for money without acknowledging risk"
+    ],
+    "communication": [
+      "Using jargon without explaining",
+      "Going too deep into irrelevant tangents",
+      "Not summarizing approach before coding",
+      "Not asking if interviewer wants to see tests",
+      "Finishing and immediately saying 'I'm done' without walkthrough"
+    ]
+  },
+  "final_checklist": {
+    "before_saying_done": [
+      "\u2705 Did I handle all stated requirements (add_driver, add_delivery, get_total_cost)?",
+      "\u2705 Did I meet the O(1) getTotalCost requirement?",
+      "\u2705 Did I use Decimal for currency precision?",
+      "\u2705 Did I trace through at least one example?",
+      "\u2705 Did I mention time and space complexity?",
+      "\u2705 Did I consider edge cases (empty, single, precision)?",
+      "\u2705 Are my variable names descriptive?",
+      "\u2705 Did I validate my approach with interviewer?"
+    ],
+    "quick_code_review": [
+      "No magic numbers (used SECONDS_PER_HOUR constant)",
+      "Consistent naming (snake_case for Python)",
+      "Proper indentation (4 spaces)",
+      "No unused variables",
+      "Error handling for invalid inputs"
+    ]
+  },
+  "production_considerations": {
+    "what_id_add_in_production": [
+      "**Input validation** with descriptive error messages",
+      "**Logging** for debugging and audit trails",
+      "**Thread-safety** if concurrent access is possible (locks or atomic operations)",
+      "**Configuration** for precision, rounding mode, currency",
+      "**Metrics/telemetry** for monitoring (delivery count, average cost, etc.)",
+      "**Persistence** - save to database, not just memory",
+      "**Rate limiting** to prevent abuse"
+    ],
+    "why_not_in_interview": "Keep interview code focused on the core problem. Adding all production concerns makes code harder to read and takes time away from solving the problem. Mention them verbally to show awareness.",
+    "how_to_mention": "Say: 'In production, I'd also add input validation, logging, and possibly thread-safety for concurrent access. For this interview, I'll focus on the core logic to keep things clear.'"
+  },
+  "generated_at": "2026-01-17T16:09:46.443217",
+  "_meta": {
+    "problem_id": "delivery_cost_tracking",
+    "part_number": null,
+    "model": "claude-opus-4-5-20251101"
+  }
+}

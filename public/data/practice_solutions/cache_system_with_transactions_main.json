@@ -1,0 +1,1034 @@
+{
+  "problem_title": "Key-Value Cache with Transaction Support",
+  "difficulty": "medium (Part 1: easy)",
+  "category": "LLD/OOP Design",
+  "estimated_time": "45-60 minutes",
+  "problem_analysis": {
+    "first_impressions": "This is a classic **OOP Design** problem that tests fundamental data structure knowledge and string parsing abilities. At its core, it's implementing a simplified Redis/Memcached. The problem is straightforward once you recognize the HashMap pattern, but has nuances in command parsing and result formatting that trip up candidates.",
+    "pattern_recognition": "**HashMap + Command Pattern**. The O(1) requirements for all operations immediately signal HashMap. The command parsing aspect tests string manipulation skills. This is a foundation for more complex transaction support in follow-ups.",
+    "key_constraints": [
+      "**O(1) for all operations** - This eliminates any approach involving iteration or searching",
+      "**Keys/values have NO spaces** - Simplifies parsing significantly; split on space is safe",
+      "**Commands are UPPERCASE** - No case normalization needed for commands",
+      "**Case-sensitive keys** - 'Key1' \u2260 'key1', must preserve exact casing",
+      "**Only GET and DELETE produce output** - SET is silent, don't add to results"
+    ],
+    "clarifying_questions": [
+      "**Q: Are keys and values always non-empty strings?** - Confirms we don't need empty string handling",
+      "**Q: Can SET be called with an existing key?** - Yes, it overwrites. Important for transaction rollback later",
+      "**Q: What's the expected output format for DELETE?** - Returns 'true'/'false' as strings, not boolean",
+      "**Q: Are commands guaranteed to be well-formed?** - Determines if we need error handling",
+      "**Q: Is thread-safety required?** - Usually no for interviews, but good to ask",
+      "**Q: Should I handle invalid commands gracefully?** - Clarifies edge case handling expectations"
+    ],
+    "edge_cases_to_consider": [
+      "GET on non-existent key \u2192 'NULL'",
+      "DELETE on non-existent key \u2192 'false'",
+      "DELETE same key twice \u2192 first 'true', second 'false'",
+      "GET after DELETE \u2192 'NULL'",
+      "Empty commands list \u2192 empty results list",
+      "SET same key multiple times (overwrite behavior)",
+      "Single command (minimal input)"
+    ]
+  },
+  "requirements_coverage": {
+    "checklist": [
+      {
+        "requirement": "SET stores key-value pair, overwrites if exists",
+        "how_met": "HashMap.put() naturally handles both insert and update",
+        "gotchas": [
+          "Don't return anything from SET",
+          "Overwrite must work silently"
+        ]
+      },
+      {
+        "requirement": "GET returns value or 'NULL'",
+        "how_met": "HashMap.get() with null check, return 'NULL' string literal",
+        "gotchas": [
+          "Return string 'NULL', not None/null",
+          "Case sensitive: 'NULL' not 'null'"
+        ]
+      },
+      {
+        "requirement": "DELETE returns boolean indicating success",
+        "how_met": "Check if key exists before removing, return result as string",
+        "gotchas": [
+          "Return 'true'/'false' strings",
+          "Must check existence BEFORE deletion"
+        ]
+      },
+      {
+        "requirement": "execute() parses and runs commands",
+        "how_met": "Split on space, dispatch based on first token",
+        "gotchas": [
+          "Only add GET/DELETE results to output",
+          "SET has 3 parts, GET/DELETE have 2"
+        ]
+      }
+    ],
+    "complexity_targets": [
+      {
+        "operation": "set",
+        "target": "O(1)",
+        "achieved": "O(1)",
+        "why": "HashMap put is O(1) average"
+      },
+      {
+        "operation": "get",
+        "target": "O(1)",
+        "achieved": "O(1)",
+        "why": "HashMap get is O(1) average"
+      },
+      {
+        "operation": "delete",
+        "target": "O(1)",
+        "achieved": "O(1)",
+        "why": "HashMap containsKey + remove both O(1)"
+      },
+      {
+        "operation": "execute",
+        "target": "O(n)",
+        "achieved": "O(n)",
+        "why": "n commands, each O(1)"
+      }
+    ],
+    "non_goals": [
+      "TTL/expiration handling (not mentioned)",
+      "Thread safety (interview scope)",
+      "Persistence to disk",
+      "Maximum capacity enforcement",
+      "Value type validation"
+    ]
+  },
+  "assumptions": [
+    "Commands are always well-formed (no need for extensive error handling)",
+    "Keys and values are always non-empty strings",
+    "No concurrent access (single-threaded)",
+    "Memory is sufficient for all key-value pairs",
+    "Commands use exactly one space as delimiter"
+  ],
+  "tradeoffs": [
+    {
+      "decision": "Use HashMap vs TreeMap",
+      "chosen": "HashMap",
+      "why": "O(1) operations vs O(log n) for TreeMap; no ordering needed",
+      "alternative": "TreeMap",
+      "when_to_switch": "If ordered iteration over keys is required"
+    },
+    {
+      "decision": "Store delete result vs compute",
+      "chosen": "Compute on demand",
+      "why": "containsKey + remove is still O(1), avoids storing extra state",
+      "alternative": "Track deleted keys separately",
+      "when_to_switch": "If we need to know deletion history"
+    },
+    {
+      "decision": "Parse commands in execute() vs separate parser class",
+      "chosen": "Inline parsing in execute()",
+      "why": "Simple enough for interview; separate class would be over-engineering",
+      "alternative": "CommandParser class",
+      "when_to_switch": "If command syntax becomes complex or needs validation"
+    }
+  ],
+  "extensibility_and_followups": {
+    "design_principles": [
+      "**Single Responsibility**: Cache class handles storage; execute() handles command parsing",
+      "**Keep public API small**: Only 4 public methods needed",
+      "**Encapsulate state**: HashMap is private, accessed only through methods"
+    ],
+    "why_this_design_scales": "The separation of `set/get/delete` as individual methods makes adding transaction support easy. Part 2 will likely wrap these operations in transaction contexts. The execute() method can dispatch to transaction-specific commands without changing core operations.",
+    "expected_followup_hooks": [
+      "`begin_transaction()` - Will need to snapshot or track changes",
+      "`commit()` - Apply pending changes",
+      "`rollback()` - Restore previous state",
+      "The HashMap can be swapped with a layered structure for transactions"
+    ],
+    "invariants": [
+      "After SET(k, v), GET(k) must return v",
+      "After DELETE(k), GET(k) must return 'NULL'",
+      "DELETE of non-existent key always returns 'false'",
+      "Operations are atomic within single-threaded context"
+    ]
+  },
+  "visual_explanation": {
+    "problem_visualization": "```\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502                    KEY-VALUE CACHE SYSTEM                    \u2502\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502                                                              \u2502\n\u2502   INPUT: Command Strings          INTERNAL: HashMap          \u2502\n\u2502   \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510           \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510       \u2502\n\u2502   \u2502 \"SET user Alice\" \u2502           \u2502                  \u2502       \u2502\n\u2502   \u2502 \"SET age 25\"     \u2502\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u25b6\u2502  user \u2192 Alice    \u2502       \u2502\n\u2502   \u2502 \"GET user\"       \u2502           \u2502  age  \u2192 25       \u2502       \u2502\n\u2502   \u2502 \"DELETE age\"     \u2502           \u2502                  \u2502       \u2502\n\u2502   \u2502 \"GET age\"        \u2502           \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518       \u2502\n\u2502   \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518                    \u2502                  \u2502\n\u2502                                           \u2502                  \u2502\n\u2502   OUTPUT: Results List                    \u25bc                  \u2502\n\u2502   \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510           \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510       \u2502\n\u2502   \u2502 \"Alice\"          \u2502\u25c0\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2502 Command Parser   \u2502       \u2502\n\u2502   \u2502 \"true\"           \u2502           \u2502 & Dispatcher     \u2502       \u2502\n\u2502   \u2502 \"NULL\"           \u2502           \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518       \u2502\n\u2502   \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518                                       \u2502\n\u2502                                                              \u2502\n\u2502   Note: SET produces no output!                              \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n```",
+    "data_structure_state": "```\nHASHMAP STATE EVOLUTION:\n\nInitial:  { }  (empty)\n                                    \n         \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n  SET    \u2502  SET user Alice \u2502\n         \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n                  \u25bc\n         \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n         \u2502 user \u2192 Alice    \u2502\n         \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n                  \u2502\n         \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n  SET    \u2502  SET age 25     \u2502\n         \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n                  \u25bc\n         \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n         \u2502 user \u2192 Alice    \u2502\n         \u2502 age  \u2192 25       \u2502\n         \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n                  \u2502\n         \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2534\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n DELETE  \u2502  DELETE age     \u2502  \u2192 returns \"true\"\n         \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u252c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n                  \u25bc\n         \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n         \u2502 user \u2192 Alice    \u2502  (age removed!)\n         \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n```",
+    "algorithm_flow": [
+      {
+        "step": 1,
+        "description": "Parse command string",
+        "visualization": "\"SET user Alice\" \u2192 [\"SET\", \"user\", \"Alice\"]",
+        "key_point": "Split on single space, first element is operation"
+      },
+      {
+        "step": 2,
+        "description": "Dispatch to appropriate method",
+        "visualization": "```\nswitch(operation):\n  \"SET\"    \u2192 set(parts[1], parts[2])\n  \"GET\"    \u2192 get(parts[1])\n  \"DELETE\" \u2192 delete(parts[1])\n```",
+        "key_point": "SET has 3 parts, GET/DELETE have 2"
+      },
+      {
+        "step": 3,
+        "description": "Execute and collect results",
+        "visualization": "```\nSET    \u2192 void, don't add to results\nGET    \u2192 add return value to results\nDELETE \u2192 add \"true\"/\"false\" to results\n```",
+        "key_point": "Only GET and DELETE produce output"
+      }
+    ],
+    "dry_run_table": "| Step | Command | Operation | Cache State | Output | Results List |\n|------|---------|-----------|-------------|--------|--------------|\n| 0 | - | Initialize | `{}` | - | `[]` |\n| 1 | `SET name Alice` | `store[name]=Alice` | `{name:Alice}` | none | `[]` |\n| 2 | `SET age 25` | `store[age]=25` | `{name:Alice, age:25}` | none | `[]` |\n| 3 | `GET name` | `return store[name]` | (unchanged) | `Alice` | `[Alice]` |\n| 4 | `GET city` | `city not in store` | (unchanged) | `NULL` | `[Alice, NULL]` |\n| 5 | `DELETE age` | `remove age` | `{name:Alice}` | `true` | `[Alice, NULL, true]` |\n| 6 | `GET age` | `age not in store` | (unchanged) | `NULL` | `[Alice, NULL, true, NULL]` |"
+  },
+  "thinking_process": {
+    "step_by_step": [
+      "**Step 1**: When I see 'O(1) for SET/GET/DELETE', I immediately think **HashMap**. This is the only data structure that gives constant time for all three operations.",
+      "**Step 2**: When I see 'command strings', I think **string parsing**. Since keys/values have no spaces, simple `split(\" \")` works perfectly.",
+      "**Step 3**: The key insight is **output filtering** - SET returns nothing, only GET and DELETE produce results. Many candidates miss this!",
+      "**Step 4**: For DELETE, I need to return boolean - but the question says results are strings, so I must convert to `\"true\"`/`\"false\"`.",
+      "**Step 5**: GET returns `\"NULL\"` string (not null/None) for missing keys. This is a common gotcha.",
+      "**Step 6**: I'll structure the code with separate methods for each operation, then `execute()` as the orchestrator."
+    ],
+    "key_insight": "The crucial realization is that this is a **command pattern** problem disguised as a cache problem. The real challenge isn't the cache (that's just a HashMap) - it's properly parsing commands and formatting output. The 'only GET/DELETE produce output' requirement catches many candidates.",
+    "why_this_works": "HashMap provides O(1) for all operations because it uses hashing to directly compute the storage location. There's no searching or iteration needed. The command pattern separates concerns: parsing happens in `execute()`, storage operations happen in dedicated methods. This separation will be crucial for Part 2 (transactions)."
+  },
+  "approaches": [
+    {
+      "name": "Brute Force - Array/List Storage",
+      "description": "Store key-value pairs as tuples in a list. Search linearly for operations.",
+      "pseudocode": "class Cache:\n    data = []  # [(key, value), ...]\n    \n    def get(key):\n        for k, v in data:\n            if k == key: return v\n        return \"NULL\"\n    \n    def set(key, value):\n        # Find and update, or append\n        for i, (k, v) in enumerate(data):\n            if k == key:\n                data[i] = (key, value)\n                return\n        data.append((key, value))",
+      "time_complexity": "O(n) for GET, SET, DELETE",
+      "space_complexity": "O(n)",
+      "pros": [
+        "Simple to understand",
+        "Easy to implement"
+      ],
+      "cons": [
+        "O(n) operations don't meet requirements",
+        "Inefficient for large datasets"
+      ],
+      "when_to_use": "Never for this problem - O(1) is required"
+    },
+    {
+      "name": "Optimal: HashMap-based Cache",
+      "description": "Use HashMap for O(1) storage. Parse commands with string split. Route to appropriate method based on command type.",
+      "pseudocode": "class Cache:\n    store = HashMap()\n    \n    def set(key, value):\n        store[key] = value\n    \n    def get(key):\n        return store.get(key, \"NULL\")\n    \n    def delete(key):\n        if key in store:\n            del store[key]\n            return True\n        return False\n    \n    def execute(commands):\n        results = []\n        for cmd in commands:\n            parts = cmd.split(\" \")\n            if parts[0] == \"SET\":\n                set(parts[1], parts[2])\n            elif parts[0] == \"GET\":\n                results.append(get(parts[1]))\n            elif parts[0] == \"DELETE\":\n                results.append(str(delete(parts[1])).lower())\n        return results",
+      "time_complexity": "O(1) for all individual operations, O(n) for execute with n commands",
+      "space_complexity": "O(k) where k = number of unique keys",
+      "pros": [
+        "Meets all O(1) requirements",
+        "Clean separation of concerns",
+        "Extensible for transactions"
+      ],
+      "cons": [
+        "None for this problem"
+      ],
+      "key_insight": "HashMap is the only data structure that provides O(1) insert, lookup, and delete simultaneously"
+    }
+  ],
+  "optimal_solution": {
+    "name": "HashMap-based Cache with Command Parser",
+    "explanation_md": "## Approach\n\nThe solution uses a **HashMap** as the core data structure, providing O(1) time complexity for all cache operations.\n\n### Key Components\n\n1. **Storage Layer** (`self._store`): A dictionary/HashMap storing key-value pairs\n2. **Individual Operations**: `set()`, `get()`, `delete()` as separate methods\n3. **Command Parser** (`execute()`): Parses string commands and dispatches to operations\n\n### Why This Works\n\n- **HashMap guarantees O(1)** average case for insert, lookup, and delete\n- **Command separation** makes code maintainable and extensible\n- **Result filtering** (only GET/DELETE) handled cleanly in execute()\n\n### Critical Details\n\n1. `GET` returns the string `\"NULL\"` (not Python's `None`)\n2. `DELETE` returns boolean, but we convert to lowercase string `\"true\"`/`\"false\"`\n3. `SET` produces no output - don't add anything to results list",
+    "data_structures": [
+      {
+        "structure": "HashMap<String, String>",
+        "purpose": "O(1) key-value storage"
+      },
+      {
+        "structure": "List<String>",
+        "purpose": "Collect results from GET/DELETE operations"
+      }
+    ],
+    "algorithm_steps": [
+      "1. **Initialize**: Create empty HashMap for storage",
+      "2. **set(key, value)**: Simply put into HashMap (overwrites if exists)",
+      "3. **get(key)**: Return value if exists, otherwise return \"NULL\"",
+      "4. **delete(key)**: Check existence, remove if present, return success boolean",
+      "5. **execute()**: Split each command, dispatch based on operation type, collect results"
+    ],
+    "why_decimal": "Not applicable for this problem - we're storing strings, not currency."
+  },
+  "solution_python_lines": [
+    "\"\"\"",
+    "Key-Value Cache System - Part 1: Basic Operations",
+    "",
+    "A simple cache implementation supporting SET, GET, DELETE operations",
+    "with O(1) time complexity for all operations.",
+    "",
+    "Author: Interview Preparation Guide",
+    "Time Complexity: O(1) for all operations",
+    "Space Complexity: O(k) where k = number of unique keys",
+    "\"\"\"",
+    "",
+    "from typing import List, Dict, Optional",
+    "",
+    "",
+    "class Cache:",
+    "    \"\"\"",
+    "    A key-value cache supporting SET, GET, DELETE operations.",
+    "    ",
+    "    All operations are O(1) time complexity using HashMap internally.",
+    "    ",
+    "    Example:",
+    "        >>> cache = Cache()",
+    "        >>> cache.set('name', 'Alice')",
+    "        >>> cache.get('name')",
+    "        'Alice'",
+    "        >>> cache.delete('name')",
+    "        True",
+    "        >>> cache.get('name')",
+    "        'NULL'",
+    "    \"\"\"",
+    "    ",
+    "    def __init__(self) -> None:",
+    "        \"\"\"Initialize an empty cache.\"\"\"",
+    "        self._store: Dict[str, str] = {}",
+    "    ",
+    "    def set(self, key: str, value: str) -> None:",
+    "        \"\"\"",
+    "        Store a key-value pair in the cache.",
+    "        ",
+    "        If the key already exists, the value is overwritten.",
+    "        ",
+    "        Args:",
+    "            key: The key to store (case-sensitive)",
+    "            value: The value to associate with the key",
+    "        ",
+    "        Time Complexity: O(1)",
+    "        \"\"\"",
+    "        self._store[key] = value",
+    "    ",
+    "    def get(self, key: str) -> str:",
+    "        \"\"\"",
+    "        Retrieve a value by its key.",
+    "        ",
+    "        Args:",
+    "            key: The key to look up",
+    "        ",
+    "        Returns:",
+    "            The value if key exists, 'NULL' otherwise",
+    "        ",
+    "        Time Complexity: O(1)",
+    "        \"\"\"",
+    "        return self._store.get(key, \"NULL\")",
+    "    ",
+    "    def delete(self, key: str) -> bool:",
+    "        \"\"\"",
+    "        Remove a key-value pair from the cache.",
+    "        ",
+    "        Args:",
+    "            key: The key to delete",
+    "        ",
+    "        Returns:",
+    "            True if the key existed and was deleted,",
+    "            False if the key didn't exist",
+    "        ",
+    "        Time Complexity: O(1)",
+    "        \"\"\"",
+    "        if key in self._store:",
+    "            del self._store[key]",
+    "            return True",
+    "        return False",
+    "    ",
+    "    def execute(self, commands: List[str]) -> List[str]:",
+    "        \"\"\"",
+    "        Execute a list of command strings.",
+    "        ",
+    "        Command formats:",
+    "            - SET <key> <value>: Store key-value pair (no output)",
+    "            - GET <key>: Return value or 'NULL'",
+    "            - DELETE <key>: Return 'true' or 'false'",
+    "        ",
+    "        Args:",
+    "            commands: List of command strings to execute",
+    "        ",
+    "        Returns:",
+    "            List of results from GET and DELETE operations only",
+    "        ",
+    "        Time Complexity: O(n) where n = number of commands",
+    "        \"\"\"",
+    "        results: List[str] = []",
+    "        ",
+    "        for command in commands:",
+    "            parts = command.split(\" \")",
+    "            operation = parts[0]",
+    "            ",
+    "            if operation == \"SET\":",
+    "                # SET has no output",
+    "                key, value = parts[1], parts[2]",
+    "                self.set(key, value)",
+    "            ",
+    "            elif operation == \"GET\":",
+    "                key = parts[1]",
+    "                result = self.get(key)",
+    "                results.append(result)",
+    "            ",
+    "            elif operation == \"DELETE\":",
+    "                key = parts[1]",
+    "                success = self.delete(key)",
+    "                # Convert boolean to lowercase string",
+    "                results.append(str(success).lower())",
+    "        ",
+    "        return results",
+    "    ",
+    "    def __repr__(self) -> str:",
+    "        \"\"\"String representation for debugging.\"\"\"",
+    "        return f\"Cache({self._store})\"",
+    "",
+    "",
+    "# ============================================================",
+    "# DEMO AND TEST CASES",
+    "# ============================================================",
+    "",
+    "if __name__ == \"__main__\":",
+    "    print(\"=\" * 60)",
+    "    print(\"KEY-VALUE CACHE - DEMO\")",
+    "    print(\"=\" * 60)",
+    "    ",
+    "    # Example 1: Basic Operations",
+    "    print(\"\\n--- Example 1: Basic Operations ---\")",
+    "    cache = Cache()",
+    "    commands = [",
+    "        \"SET name Alice\",",
+    "        \"SET age 25\",",
+    "        \"GET name\",",
+    "        \"GET city\",",
+    "        \"DELETE age\",",
+    "        \"GET age\"",
+    "    ]",
+    "    results = cache.execute(commands)",
+    "    print(f\"Commands: {commands}\")",
+    "    print(f\"Results:  {results}\")",
+    "    print(f\"Expected: ['Alice', 'NULL', 'true', 'NULL']\")",
+    "    assert results == [\"Alice\", \"NULL\", \"true\", \"NULL\"], \"Example 1 failed!\"",
+    "    print(\"\u2713 Passed!\")",
+    "    ",
+    "    # Example 2: Overwrite Existing Key",
+    "    print(\"\\n--- Example 2: Overwrite Existing Key ---\")",
+    "    cache = Cache()",
+    "    commands = [",
+    "        \"SET user Bob\",",
+    "        \"GET user\",",
+    "        \"SET user Charlie\",",
+    "        \"GET user\"",
+    "    ]",
+    "    results = cache.execute(commands)",
+    "    print(f\"Commands: {commands}\")",
+    "    print(f\"Results:  {results}\")",
+    "    print(f\"Expected: ['Bob', 'Charlie']\")",
+    "    assert results == [\"Bob\", \"Charlie\"], \"Example 2 failed!\"",
+    "    print(\"\u2713 Passed!\")",
+    "    ",
+    "    # Example 3: Delete Non-existent Key",
+    "    print(\"\\n--- Example 3: Delete Edge Cases ---\")",
+    "    cache = Cache()",
+    "    commands = [",
+    "        \"DELETE phantom\",",
+    "        \"SET key1 value1\",",
+    "        \"DELETE key1\",",
+    "        \"DELETE key1\"",
+    "    ]",
+    "    results = cache.execute(commands)",
+    "    print(f\"Commands: {commands}\")",
+    "    print(f\"Results:  {results}\")",
+    "    print(f\"Expected: ['false', 'true', 'false']\")",
+    "    assert results == [\"false\", \"true\", \"false\"], \"Example 3 failed!\"",
+    "    print(\"\u2713 Passed!\")",
+    "    ",
+    "    # Example 4: Empty Cache Queries",
+    "    print(\"\\n--- Example 4: Empty Cache Queries ---\")",
+    "    cache = Cache()",
+    "    commands = [",
+    "        \"GET missing\",",
+    "        \"DELETE nothing\",",
+    "        \"GET also_missing\"",
+    "    ]",
+    "    results = cache.execute(commands)",
+    "    print(f\"Commands: {commands}\")",
+    "    print(f\"Results:  {results}\")",
+    "    print(f\"Expected: ['NULL', 'false', 'NULL']\")",
+    "    assert results == [\"NULL\", \"false\", \"NULL\"], \"Example 4 failed!\"",
+    "    print(\"\u2713 Passed!\")",
+    "    ",
+    "    # Test individual methods",
+    "    print(\"\\n--- Individual Method Tests ---\")",
+    "    cache = Cache()",
+    "    ",
+    "    # Test set and get",
+    "    cache.set(\"test\", \"value\")",
+    "    assert cache.get(\"test\") == \"value\", \"Direct get failed!\"",
+    "    print(\"\u2713 Direct set/get works\")",
+    "    ",
+    "    # Test delete returns",
+    "    assert cache.delete(\"test\") == True, \"Delete existing should return True\"",
+    "    assert cache.delete(\"test\") == False, \"Delete non-existing should return False\"",
+    "    print(\"\u2713 Delete return values correct\")",
+    "    ",
+    "    # Test get after delete",
+    "    assert cache.get(\"test\") == \"NULL\", \"Get after delete should return NULL\"",
+    "    print(\"\u2713 Get after delete returns NULL\")",
+    "    ",
+    "    print(\"\\n\" + \"=\" * 60)",
+    "    print(\"ALL TESTS PASSED!\")",
+    "    print(\"=\" * 60)"
+  ],
+  "solution_java_lines": [
+    "import java.util.*;",
+    "",
+    "/**",
+    " * Key-Value Cache System - Part 1: Basic Operations",
+    " * ",
+    " * A simple cache implementation supporting SET, GET, DELETE operations",
+    " * with O(1) time complexity for all operations.",
+    " * ",
+    " * @author Interview Preparation Guide",
+    " */",
+    "public class Cache {",
+    "    ",
+    "    /** Internal storage using HashMap for O(1) operations */",
+    "    private Map<String, String> store;",
+    "    ",
+    "    /**",
+    "     * Initialize an empty cache.",
+    "     */",
+    "    public Cache() {",
+    "        this.store = new HashMap<>();",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Store a key-value pair in the cache.",
+    "     * If the key already exists, the value is overwritten.",
+    "     * ",
+    "     * @param key   The key to store (case-sensitive)",
+    "     * @param value The value to associate with the key",
+    "     * ",
+    "     * Time Complexity: O(1)",
+    "     */",
+    "    public void set(String key, String value) {",
+    "        store.put(key, value);",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Retrieve a value by its key.",
+    "     * ",
+    "     * @param key The key to look up",
+    "     * @return The value if key exists, \"NULL\" otherwise",
+    "     * ",
+    "     * Time Complexity: O(1)",
+    "     */",
+    "    public String get(String key) {",
+    "        return store.getOrDefault(key, \"NULL\");",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Remove a key-value pair from the cache.",
+    "     * ",
+    "     * @param key The key to delete",
+    "     * @return true if key existed and was deleted, false otherwise",
+    "     * ",
+    "     * Time Complexity: O(1)",
+    "     */",
+    "    public boolean delete(String key) {",
+    "        if (store.containsKey(key)) {",
+    "            store.remove(key);",
+    "            return true;",
+    "        }",
+    "        return false;",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Execute a list of command strings.",
+    "     * ",
+    "     * Command formats:",
+    "     *   - SET <key> <value>: Store key-value pair (no output)",
+    "     *   - GET <key>: Return value or \"NULL\"",
+    "     *   - DELETE <key>: Return \"true\" or \"false\"",
+    "     * ",
+    "     * @param commands List of command strings to execute",
+    "     * @return List of results from GET and DELETE operations only",
+    "     * ",
+    "     * Time Complexity: O(n) where n = number of commands",
+    "     */",
+    "    public List<String> execute(List<String> commands) {",
+    "        List<String> results = new ArrayList<>();",
+    "        ",
+    "        for (String command : commands) {",
+    "            String[] parts = command.split(\" \");",
+    "            String operation = parts[0];",
+    "            ",
+    "            switch (operation) {",
+    "                case \"SET\":",
+    "                    // SET has no output",
+    "                    set(parts[1], parts[2]);",
+    "                    break;",
+    "                    ",
+    "                case \"GET\":",
+    "                    results.add(get(parts[1]));",
+    "                    break;",
+    "                    ",
+    "                case \"DELETE\":",
+    "                    // Convert boolean to lowercase string",
+    "                    results.add(String.valueOf(delete(parts[1])));",
+    "                    break;",
+    "            }",
+    "        }",
+    "        ",
+    "        return results;",
+    "    }",
+    "    ",
+    "    @Override",
+    "    public String toString() {",
+    "        return \"Cache(\" + store.toString() + \")\";",
+    "    }",
+    "    ",
+    "    // ============================================================",
+    "    // DEMO AND TEST CASES",
+    "    // ============================================================",
+    "    ",
+    "    public static void main(String[] args) {",
+    "        System.out.println(\"============================================================\");",
+    "        System.out.println(\"KEY-VALUE CACHE - DEMO\");",
+    "        System.out.println(\"============================================================\");",
+    "        ",
+    "        // Example 1: Basic Operations",
+    "        System.out.println(\"\\n--- Example 1: Basic Operations ---\");",
+    "        Cache cache = new Cache();",
+    "        List<String> commands = Arrays.asList(",
+    "            \"SET name Alice\",",
+    "            \"SET age 25\",",
+    "            \"GET name\",",
+    "            \"GET city\",",
+    "            \"DELETE age\",",
+    "            \"GET age\"",
+    "        );",
+    "        List<String> results = cache.execute(commands);",
+    "        System.out.println(\"Commands: \" + commands);",
+    "        System.out.println(\"Results:  \" + results);",
+    "        System.out.println(\"Expected: [Alice, NULL, true, NULL]\");",
+    "        ",
+    "        List<String> expected = Arrays.asList(\"Alice\", \"NULL\", \"true\", \"NULL\");",
+    "        assert results.equals(expected) : \"Example 1 failed!\";",
+    "        System.out.println(\"\u2713 Passed!\");",
+    "        ",
+    "        // Example 2: Overwrite Existing Key",
+    "        System.out.println(\"\\n--- Example 2: Overwrite Existing Key ---\");",
+    "        cache = new Cache();",
+    "        commands = Arrays.asList(",
+    "            \"SET user Bob\",",
+    "            \"GET user\",",
+    "            \"SET user Charlie\",",
+    "            \"GET user\"",
+    "        );",
+    "        results = cache.execute(commands);",
+    "        System.out.println(\"Commands: \" + commands);",
+    "        System.out.println(\"Results:  \" + results);",
+    "        System.out.println(\"Expected: [Bob, Charlie]\");",
+    "        ",
+    "        expected = Arrays.asList(\"Bob\", \"Charlie\");",
+    "        assert results.equals(expected) : \"Example 2 failed!\";",
+    "        System.out.println(\"\u2713 Passed!\");",
+    "        ",
+    "        // Example 3: Delete Edge Cases",
+    "        System.out.println(\"\\n--- Example 3: Delete Edge Cases ---\");",
+    "        cache = new Cache();",
+    "        commands = Arrays.asList(",
+    "            \"DELETE phantom\",",
+    "            \"SET key1 value1\",",
+    "            \"DELETE key1\",",
+    "            \"DELETE key1\"",
+    "        );",
+    "        results = cache.execute(commands);",
+    "        System.out.println(\"Commands: \" + commands);",
+    "        System.out.println(\"Results:  \" + results);",
+    "        System.out.println(\"Expected: [false, true, false]\");",
+    "        ",
+    "        expected = Arrays.asList(\"false\", \"true\", \"false\");",
+    "        assert results.equals(expected) : \"Example 3 failed!\";",
+    "        System.out.println(\"\u2713 Passed!\");",
+    "        ",
+    "        System.out.println(\"\\n============================================================\");",
+    "        System.out.println(\"ALL TESTS PASSED!\");",
+    "        System.out.println(\"============================================================\");",
+    "    }",
+    "}"
+  ],
+  "code_walkthrough": [
+    {
+      "lines": "1-12",
+      "section": "Imports and Class Documentation",
+      "explanation": "We import typing for type hints. The docstring explains the class purpose, time complexity guarantees, and provides a usage example. This shows professionalism and helps future readers."
+    },
+    {
+      "lines": "14-31",
+      "section": "Class Definition and __init__",
+      "explanation": "The Cache class has a single private attribute `_store` - a dictionary (HashMap). Using underscore prefix indicates it's private. We use type hints `Dict[str, str]` to document that both keys and values are strings."
+    },
+    {
+      "lines": "33-47",
+      "section": "set() Method",
+      "explanation": "The simplest method - just assigns to the dictionary. Python's dict handles both insert and update. Note: no return value (void). The docstring specifies that existing values are overwritten, which is crucial for understanding transaction rollback in Part 2."
+    },
+    {
+      "lines": "49-64",
+      "section": "get() Method",
+      "explanation": "Uses `dict.get(key, default)` pattern to return 'NULL' for missing keys. This is cleaner than `if key in dict` check. **Critical**: Returns the STRING 'NULL', not Python's None value."
+    },
+    {
+      "lines": "66-84",
+      "section": "delete() Method",
+      "explanation": "Must check existence BEFORE deleting to return correct boolean. Using `if key in self._store` first ensures we know if deletion actually happened. Can't use `dict.pop(key, None)` because we need to distinguish 'key existed' from 'key didn't exist'."
+    },
+    {
+      "lines": "86-117",
+      "section": "execute() Method - Command Parser",
+      "explanation": "This is the orchestrator. It splits each command string, identifies the operation, and dispatches to the appropriate method. **Key insight**: Only GET and DELETE results are added to the results list - SET is silent. For DELETE, we convert boolean to lowercase string ('true'/'false')."
+    },
+    {
+      "lines": "119-end",
+      "section": "Demo and Test Cases",
+      "explanation": "The if __name__ == '__main__' block runs tests. Each example from the problem is tested with assertions. This demonstrates testing mindset and makes the code immediately runnable. In an interview, you'd trace through at least one example manually."
+    }
+  ],
+  "debugging_strategy": {
+    "how_to_test_incrementally": "1. First test `set()` and `get()` independently: `cache.set('a', '1'); assert cache.get('a') == '1'`\n2. Test `get()` for non-existent key: `assert cache.get('missing') == 'NULL'`\n3. Test `delete()` return values: existing returns True, non-existing returns False\n4. Finally test `execute()` with simple command list",
+    "what_to_print_or_assert": [
+      "print(f'Cache state: {cache._store}')  # After each operation",
+      "print(f'Command: {command}, Result: {result}')  # In execute loop",
+      "assert cache.get(key) == expected, f'Expected {expected}, got {cache.get(key)}'"
+    ],
+    "common_failure_modes": [
+      "**Returning None instead of 'NULL'** - Check your get() implementation",
+      "**Including SET results in output** - SET should not add to results list",
+      "**Wrong boolean string format** - Should be 'true'/'false', not 'True'/'False'",
+      "**Delete not checking existence** - Use containsKey before remove"
+    ],
+    "how_to_fix_fast": "1. If output has wrong length: Check if you're adding SET results (you shouldn't)\n2. If getting wrong values: Print cache state after each operation\n3. If 'True' instead of 'true': Use `str(bool_val).lower()` in Python or `String.valueOf()` in Java\n4. If getting errors: Check command parsing - verify split produces expected parts"
+  },
+  "complexity_analysis": {
+    "time": {
+      "set": {
+        "complexity": "O(1)",
+        "explanation": "HashMap put is O(1) average case"
+      },
+      "get": {
+        "complexity": "O(1)",
+        "explanation": "HashMap get/getOrDefault is O(1) average case"
+      },
+      "delete": {
+        "complexity": "O(1)",
+        "explanation": "HashMap containsKey + remove both O(1)"
+      },
+      "execute": {
+        "complexity": "O(n * k)",
+        "explanation": "n commands, each with string of length k; split is O(k), but since k is bounded by constraint (100 chars), effectively O(n)"
+      },
+      "overall": "All individual cache operations are O(1). execute() is O(n) for n commands."
+    },
+    "space": {
+      "complexity": "O(k) where k = number of unique keys in cache",
+      "breakdown": "- HashMap storage: O(k) for k key-value pairs\n- Each key: up to 100 chars\n- Each value: up to 1000 chars\n- Results list: O(n) for n commands (temporary)\n- Worst case: O(k * 1100) characters",
+      "note": "We don't store command history - only current cache state and results"
+    },
+    "can_we_do_better": "No - O(1) is optimal for individual operations. HashMap is the only data structure that achieves this for all three operations. Space is minimal - we only store what's needed."
+  },
+  "dry_run": {
+    "example": "Commands: ['SET name Alice', 'SET age 25', 'GET name', 'GET city', 'DELETE age', 'GET age']",
+    "trace_table": "| Step | Command | Parsed Parts | Action | Cache State | Output | Results |\n|------|---------|--------------|--------|-------------|--------|--------|\n| 0 | - | - | Initialize | `{}` | - | `[]` |\n| 1 | `SET name Alice` | `['SET','name','Alice']` | `store['name']='Alice'` | `{'name':'Alice'}` | (none) | `[]` |\n| 2 | `SET age 25` | `['SET','age','25']` | `store['age']='25'` | `{'name':'Alice','age':'25'}` | (none) | `[]` |\n| 3 | `GET name` | `['GET','name']` | `return store['name']` | (unchanged) | `'Alice'` | `['Alice']` |\n| 4 | `GET city` | `['GET','city']` | `'city' not in store` | (unchanged) | `'NULL'` | `['Alice','NULL']` |\n| 5 | `DELETE age` | `['DELETE','age']` | `del store['age']` | `{'name':'Alice'}` | `'true'` | `['Alice','NULL','true']` |\n| 6 | `GET age` | `['GET','age']` | `'age' not in store` | (unchanged) | `'NULL'` | `['Alice','NULL','true','NULL']` |",
+    "final_answer": "['Alice', 'NULL', 'true', 'NULL']"
+  },
+  "test_cases": [
+    {
+      "name": "Basic SET and GET",
+      "category": "Happy Path",
+      "input": "['SET name Alice', 'GET name']",
+      "expected": "['Alice']",
+      "explanation": "Simple store and retrieve - the most basic operation"
+    },
+    {
+      "name": "GET non-existent key",
+      "category": "Edge Case",
+      "input": "['GET missing']",
+      "expected": "['NULL']",
+      "explanation": "Must return string 'NULL', not error or None"
+    },
+    {
+      "name": "Overwrite existing value",
+      "category": "Edge Case",
+      "input": "['SET key old', 'SET key new', 'GET key']",
+      "expected": "['new']",
+      "explanation": "SET must overwrite existing values silently"
+    },
+    {
+      "name": "DELETE existing key",
+      "category": "Happy Path",
+      "input": "['SET key value', 'DELETE key']",
+      "expected": "['true']",
+      "explanation": "DELETE returns 'true' when key existed"
+    },
+    {
+      "name": "DELETE non-existent key",
+      "category": "Edge Case",
+      "input": "['DELETE phantom']",
+      "expected": "['false']",
+      "explanation": "DELETE returns 'false' when key didn't exist"
+    },
+    {
+      "name": "GET after DELETE",
+      "category": "Edge Case",
+      "input": "['SET key value', 'DELETE key', 'GET key']",
+      "expected": "['true', 'NULL']",
+      "explanation": "After deletion, GET should return 'NULL'"
+    },
+    {
+      "name": "Double DELETE",
+      "category": "Edge Case",
+      "input": "['SET key value', 'DELETE key', 'DELETE key']",
+      "expected": "['true', 'false']",
+      "explanation": "Second delete fails because key already gone"
+    },
+    {
+      "name": "Empty commands",
+      "category": "Edge Case",
+      "input": "[]",
+      "expected": "[]",
+      "explanation": "Empty input should return empty output"
+    },
+    {
+      "name": "Only SET operations",
+      "category": "Edge Case",
+      "input": "['SET a 1', 'SET b 2', 'SET c 3']",
+      "expected": "[]",
+      "explanation": "SET produces no output, so result is empty"
+    },
+    {
+      "name": "Case sensitivity",
+      "category": "Edge Case",
+      "input": "['SET Key1 value1', 'SET key1 value2', 'GET Key1', 'GET key1']",
+      "expected": "['value1', 'value2']",
+      "explanation": "Keys are case-sensitive: 'Key1' \u2260 'key1'"
+    }
+  ],
+  "common_mistakes": [
+    {
+      "mistake": "Returning None/null instead of 'NULL' string",
+      "why_wrong": "The problem explicitly requires the string 'NULL' to be returned for missing keys",
+      "correct_approach": "Use dictionary's get with default: `return self._store.get(key, 'NULL')`",
+      "code_wrong": "def get(self, key):\n    if key in self._store:\n        return self._store[key]\n    return None  # WRONG!",
+      "code_correct": "def get(self, key):\n    return self._store.get(key, 'NULL')  # Correct!"
+    },
+    {
+      "mistake": "Including SET results in output",
+      "why_wrong": "SET operation should not produce any output - only GET and DELETE do",
+      "correct_approach": "Don't append anything to results for SET operations",
+      "code_wrong": "if operation == 'SET':\n    self.set(parts[1], parts[2])\n    results.append('OK')  # WRONG!",
+      "code_correct": "if operation == 'SET':\n    self.set(parts[1], parts[2])\n    # No results.append() - SET is silent"
+    },
+    {
+      "mistake": "Wrong boolean string format for DELETE",
+      "why_wrong": "Python's str(True) gives 'True', but we need 'true' (lowercase)",
+      "correct_approach": "Use str(bool).lower() to convert",
+      "code_wrong": "results.append(str(self.delete(key)))  # Returns 'True' not 'true'",
+      "code_correct": "results.append(str(self.delete(key)).lower())  # Returns 'true'"
+    },
+    {
+      "mistake": "Using dict.pop() and losing delete return value",
+      "why_wrong": "pop() returns the value, not whether key existed. Can't distinguish between key with None value vs missing key",
+      "correct_approach": "Check existence before deletion",
+      "code_wrong": "def delete(self, key):\n    return self._store.pop(key, None) is not None  # Fails if value is None",
+      "code_correct": "def delete(self, key):\n    if key in self._store:\n        del self._store[key]\n        return True\n    return False"
+    },
+    {
+      "mistake": "Not handling command parsing edge cases",
+      "why_wrong": "If commands have extra spaces or malformed input, split may fail",
+      "correct_approach": "For interview, assume well-formed input; in production, add validation",
+      "code_wrong": "parts = command.split()  # Splits on any whitespace",
+      "code_correct": "parts = command.split(' ')  # Splits on single space only"
+    }
+  ],
+  "interview_tips": {
+    "opening": "Thank you for this problem. Before I start coding, I'd like to clarify a few things about the requirements and constraints...",
+    "clarifying_questions_to_ask": [
+      "Are keys and values guaranteed to be non-empty strings?",
+      "Can SET be called with a key that already exists? (I assume it overwrites)",
+      "For DELETE, should I return a boolean or a string representation?",
+      "Are commands guaranteed to be well-formed, or should I handle errors?",
+      "Is thread-safety a concern for this implementation?"
+    ],
+    "what_to_mention_proactively": [
+      "I'll use a HashMap for O(1) time complexity on all operations",
+      "I notice only GET and DELETE produce output - SET is silent",
+      "I'll return the string 'NULL' for missing keys, not actual null",
+      "Let me trace through an example after I finish coding"
+    ],
+    "communication_during_coding": [
+      "I'm creating a private HashMap to store the key-value pairs...",
+      "For set(), I'll just use dictionary assignment which handles both insert and update...",
+      "For get(), I'll use the get() method with 'NULL' as default...",
+      "In execute(), I'm only adding to results for GET and DELETE, not SET..."
+    ],
+    "if_stuck": [
+      "Let me step back and think about the data structure - O(1) operations means HashMap",
+      "Let me trace through the example manually to understand the expected output",
+      "The key constraint here is that SET produces no output"
+    ],
+    "time_management": "**0-3min**: Clarify requirements and confirm understanding\n**3-8min**: Explain approach, get buy-in\n**8-18min**: Implement core solution\n**18-23min**: Test with examples, handle edge cases\n**23-30min**: Complexity analysis, ready for follow-ups"
+  },
+  "pattern_recognition": {
+    "pattern_name": "Command Pattern + HashMap Storage",
+    "indicators": [
+      "O(1) requirement for insert, lookup, delete",
+      "String commands that need parsing",
+      "Key-value storage semantics"
+    ],
+    "similar_problems": [
+      "LC 146 - LRU Cache: HashMap + LinkedList for O(1) with ordering",
+      "LC 380 - Insert Delete GetRandom O(1): HashMap + Array",
+      "LC 706 - Design HashMap: Implementing hash table from scratch",
+      "LC 1603 - Design Parking System: Simple state management"
+    ],
+    "template": "```\nclass Cache:\n    def __init__(self):\n        self.store = {}  # HashMap\n    \n    def set(key, value):\n        store[key] = value\n    \n    def get(key):\n        return store.get(key, default)\n    \n    def delete(key):\n        if key in store:\n            del store[key]\n            return True\n        return False\n```"
+  },
+  "follow_up_preparation": {
+    "part_2_hint": "**Part 2 adds Transaction Support** with BEGIN, COMMIT, ROLLBACK commands. You'll need to track changes made within a transaction so you can undo them. Consider using a stack of change records or maintaining a snapshot of state before the transaction.",
+    "part_3_hint": "**Part 3 adds Nested Transactions**. A transaction inside another transaction should be able to commit or rollback independently. This suggests using a stack of transaction contexts, where each level can have its own local changes.",
+    "data_structure_evolution": "**Part 1**: Single HashMap\n**Part 2**: HashMap + Transaction context (changes list or snapshot)\n**Part 3**: HashMap + Stack of transaction contexts"
+  },
+  "communication_script": {
+    "opening_verbatim": "Thank you for this problem. I see we're building a key-value cache similar to Redis with SET, GET, DELETE operations. Before I start, let me clarify a few things...",
+    "after_clarification": "Great, so to summarize: I need to implement a cache with O(1) operations, parse string commands, and only return results for GET and DELETE. SET is silent. I'll use a HashMap as the underlying data structure. Does that approach sound good?",
+    "while_coding": [
+      "I'm initializing the HashMap here - I'll call it _store with underscore to indicate it's private...",
+      "For set(), I'm using simple dictionary assignment which handles both new keys and overwrites...",
+      "Notice in execute(), I'm only appending to results for GET and DELETE, not for SET...",
+      "I'm converting the boolean to lowercase string here because the output format requires 'true'/'false'..."
+    ],
+    "after_coding": "Let me trace through Example 1 to verify this works correctly... [traces through]",
+    "when_stuck_verbatim": "I'm thinking about how to handle this... Let me step back and consider what data structure gives us O(1) for all three operations...",
+    "after_mistake": "Actually, I see an issue - I was returning Python's True instead of the string 'true'. Let me fix that by adding .lower() to the string conversion.",
+    "before_moving_on": "This handles Part 1 with O(1) for all operations and O(k) space for k unique keys. I'm ready for the follow-up when you'd like to proceed."
+  },
+  "interviewer_perspective": {
+    "what_they_evaluate": [
+      "**Problem decomposition**: Do you break the problem into clear components?",
+      "**Data structure choice**: Do you immediately recognize HashMap for O(1)?",
+      "**Attention to detail**: Do you catch the 'only GET/DELETE produce output' requirement?",
+      "**Code quality**: Clean, readable code with good variable names?",
+      "**Testing instinct**: Do you trace through examples and consider edge cases?"
+    ],
+    "bonus_points": [
+      "Asking about error handling before assuming happy path",
+      "Mentioning transaction support readiness when designing",
+      "Using type hints and docstrings",
+      "Proactively testing edge cases (empty input, non-existent keys)",
+      "Drawing a quick diagram of command flow"
+    ],
+    "red_flags": [
+      "Using O(n) data structure when O(1) is required",
+      "Not asking any clarifying questions",
+      "Including SET results in output (shows not reading carefully)",
+      "Unable to trace through examples",
+      "Overly complex solution for a simple problem"
+    ],
+    "what_differentiates_strong_candidates": "Strong candidates immediately recognize the HashMap pattern, ask smart clarifying questions (especially about output format), write clean code on first pass, and proactively consider edge cases. They treat Part 1 as a foundation and mention how their design accommodates future extensions."
+  },
+  "time_milestones": {
+    "by_5_min": "Understand problem, ask clarifying questions, confirm that only GET/DELETE produce output",
+    "by_8_min": "Explain HashMap approach, get interviewer buy-in, start coding",
+    "by_15_min": "Core implementation complete (set, get, delete, execute)",
+    "by_20_min": "Testing with examples, edge cases handled",
+    "by_25_min": "Complexity analysis done, code clean-up complete",
+    "by_30_min": "Part 1 finished, ready to discuss Part 2 (transactions)",
+    "warning_signs": "If still clarifying at 8 min or still coding at 20 min, speed up. This is Part 1 (easy) - save time for harder follow-ups."
+  },
+  "recovery_strategies": {
+    "when_you_make_a_bug": "Don't panic. Say: 'I see an issue - I'm returning the wrong format for delete. Let me fix that.' Fix it cleanly and explain briefly. Bugs are expected; recovery is evaluated.",
+    "when_you_dont_know_syntax": "Say: 'I don't remember the exact method name for checking if a key exists in Java HashMap - I believe it's containsKey()? Let me write it that way.' This is acceptable.",
+    "when_approach_is_wrong": "Say: 'Actually, I realize storing in a list would be O(n) for lookups, which doesn't meet the requirement. Let me use a HashMap instead.' Pivoting cleanly shows good judgment.",
+    "when_completely_stuck": "Say: 'I'm stuck on how to handle the output filtering. Could you confirm that SET operations should not produce any output?' Targeted questions show you're thinking.",
+    "when_running_out_of_time": "Say: 'I'm short on time, so let me focus on getting the core logic right and I'll explain the edge cases verbally.' Prioritize working code over perfection."
+  },
+  "ai_copilot_tips": {
+    "when_using_cursor_or_copilot": "Rippling allows AI tools during interviews. Use them wisely - they should speed you up, not replace your thinking.",
+    "what_to_do": [
+      "Use AI for boilerplate (class structure, imports, docstrings)",
+      "Use for syntax you forgot (e.g., 'how to check if key exists in Java HashMap')",
+      "Let it autocomplete obvious code like getters/setters",
+      "Use for generating test cases after your solution"
+    ],
+    "what_not_to_do": [
+      "Don't paste the entire problem and ask for solution",
+      "Don't accept AI suggestions without understanding them",
+      "Don't let AI write your execute() parsing logic - that's the core of Part 1",
+      "Don't rely on AI for design decisions"
+    ],
+    "how_to_demonstrate_understanding": "If AI suggests code, explain WHY it works: 'The AI suggested using getOrDefault here, which is good because it handles the missing key case in one line, returning our default 'NULL' string.'",
+    "expectation_adjustment": "Using AI means you should complete MORE of the problem. If you're slower with AI than without, don't use it. Complete Part 1 quickly and get to Part 2."
+  },
+  "signal_points": {
+    "wow_factors": [
+      "Immediately recognizing HashMap pattern from O(1) requirements",
+      "Catching the 'only GET/DELETE produce output' detail without being told",
+      "Mentioning how the design prepares for transaction support",
+      "Using proper encapsulation (private store, public methods)",
+      "Writing clean, self-documenting code on first pass"
+    ],
+    "subtle_signals_of_experience": [
+      "Using dict.get(key, default) instead of if-else",
+      "Converting boolean to lowercase string correctly on first try",
+      "Considering thread-safety even if not implementing it",
+      "Naming variables clearly (store, results, command, parts)",
+      "Testing edge cases without being prompted"
+    ]
+  },
+  "red_flags_to_avoid": {
+    "behavioral": [
+      "Staying silent while coding for more than 30 seconds",
+      "Getting defensive when interviewer points out the SET output issue",
+      "Not asking any clarifying questions before coding",
+      "Rushing to code without explaining approach"
+    ],
+    "technical": [
+      "Using a list/array instead of HashMap (O(n) operations)",
+      "Returning None instead of 'NULL' string",
+      "Including SET results in output list",
+      "Using 'True'/'False' instead of 'true'/'false'"
+    ],
+    "communication": [
+      "Not summarizing requirements before coding",
+      "Not tracing through at least one example",
+      "Over-engineering the solution (e.g., creating CommandParser class)",
+      "Not mentioning time/space complexity"
+    ]
+  },
+  "final_checklist": {
+    "before_saying_done": [
+      "\u2713 SET stores and overwrites correctly",
+      "\u2713 GET returns value or 'NULL' string",
+      "\u2713 DELETE returns 'true'/'false' strings",
+      "\u2713 execute() only returns GET/DELETE results",
+      "\u2713 Traced through at least one example",
+      "\u2713 Mentioned O(1) time complexity",
+      "\u2713 Code is clean and readable"
+    ],
+    "quick_code_review": [
+      "No magic strings (using 'NULL' consistently)",
+      "Consistent naming (store, results, command, parts)",
+      "Proper indentation (4 spaces for Python)",
+      "Type hints on all methods",
+      "No unused variables or dead code"
+    ]
+  },
+  "production_considerations": {
+    "what_id_add_in_production": [
+      "**Input validation**: Check for null/empty keys, validate command format",
+      "**Error handling**: Return error for invalid commands instead of crashing",
+      "**Logging**: Log operations for debugging and auditing",
+      "**Thread safety**: Use ConcurrentHashMap or synchronization",
+      "**Metrics**: Track cache hit/miss rates, operation latency",
+      "**TTL support**: Allow keys to expire after a timeout"
+    ],
+    "why_not_in_interview": "Keep interview code focused on the core problem. Adding production features can make code harder to read and takes time away from follow-up parts. Mention these verbally to show senior thinking.",
+    "how_to_mention": "Say: 'In production, I'd add input validation, logging, and potentially thread-safety. But for this interview, I'll focus on the core logic to save time for the follow-ups.'"
+  },
+  "generated_at": "2026-01-18T18:17:53.464721",
+  "_meta": {
+    "problem_id": "cache_system_with_transactions",
+    "part_number": null,
+    "model": "claude-opus-4-5-20251101"
+  }
+}

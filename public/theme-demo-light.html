@@ -1,0 +1,753 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Light Theme Comparison Demo</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+      min-height: 100vh;
+      padding: 40px;
+    }
+    
+    h1 {
+      text-align: center;
+      margin-bottom: 16px;
+      font-size: 28px;
+      color: white;
+      text-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    }
+    
+    .subtitle {
+      text-align: center;
+      color: rgba(255,255,255,0.8);
+      margin-bottom: 40px;
+      font-size: 16px;
+    }
+    
+    .themes-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      max-width: 1500px;
+      margin: 0 auto;
+    }
+    
+    .theme-card {
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 25px 50px rgba(0,0,0,0.25);
+    }
+    
+    .theme-label {
+      text-align: center;
+      padding: 14px;
+      font-weight: 700;
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    
+    /* ============================================
+       THEME 1: NOTION CLEAN (Minimal + Semantic)
+       ============================================ */
+    .notion {
+      --bg-page: #FFFFFF;
+      --bg-card: #F7F7F5;
+      --bg-hover: #EFEFED;
+      --text-primary: #37352F;
+      --text-secondary: #787774;
+      --text-muted: #9B9A97;
+      --border: #E9E9E7;
+      
+      /* Semantic Phase Colors */
+      --phase-understand: #2E7CF6;
+      --phase-understand-bg: #E7F0FE;
+      --phase-approach: #9333EA;
+      --phase-approach-bg: #F3E8FF;
+      --phase-solution: #0F9D58;
+      --phase-solution-bg: #E6F4EA;
+      --phase-verify: #F29D49;
+      --phase-verify-bg: #FEF3E7;
+      --phase-master: #C4841D;
+      --phase-master-bg: #FDF6E3;
+    }
+    
+    .notion .theme-label {
+      background: linear-gradient(135deg, #37352F, #787774);
+      color: white;
+    }
+    
+    /* ============================================
+       THEME 2: LINEAR GRADIENT (Modern + Colorful)
+       ============================================ */
+    .linear {
+      --bg-page: #FAFBFC;
+      --bg-card: #FFFFFF;
+      --bg-hover: #F4F5F7;
+      --text-primary: #1A1A2E;
+      --text-secondary: #5E6687;
+      --text-muted: #8993A4;
+      --border: #E4E7EB;
+      
+      /* Semantic Phase Colors - More vibrant */
+      --phase-understand: #5B6CF9;
+      --phase-understand-bg: linear-gradient(135deg, #EEF0FF 0%, #E8EBFF 100%);
+      --phase-approach: #A855F7;
+      --phase-approach-bg: linear-gradient(135deg, #F5EEFF 0%, #F0E5FF 100%);
+      --phase-solution: #10B981;
+      --phase-solution-bg: linear-gradient(135deg, #ECFDF5 0%, #E0FBF1 100%);
+      --phase-verify: #F59E0B;
+      --phase-verify-bg: linear-gradient(135deg, #FFFBEB 0%, #FEF3C7 100%);
+      --phase-master: #EC4899;
+      --phase-master-bg: linear-gradient(135deg, #FDF2F8 0%, #FCE7F3 100%);
+    }
+    
+    .linear .theme-label {
+      background: linear-gradient(135deg, #5B6CF9 0%, #A855F7 50%, #EC4899 100%);
+      color: white;
+    }
+    
+    /* ============================================
+       THEME 3: STRIPE ELEGANT (Professional + Rich)
+       ============================================ */
+    .stripe {
+      --bg-page: #F6F9FC;
+      --bg-card: #FFFFFF;
+      --bg-hover: #F0F4F8;
+      --text-primary: #0A2540;
+      --text-secondary: #425466;
+      --text-muted: #697386;
+      --border: #E3E8EE;
+      
+      /* Semantic Phase Colors - Stripe style */
+      --phase-understand: #635BFF;
+      --phase-understand-bg: #F5F4FF;
+      --phase-approach: #0055D4;
+      --phase-approach-bg: #EBF4FF;
+      --phase-solution: #00A67E;
+      --phase-solution-bg: #E6FAF5;
+      --phase-verify: #FFBB00;
+      --phase-verify-bg: #FFFAE5;
+      --phase-master: #E56910;
+      --phase-master-bg: #FFF4EB;
+    }
+    
+    .stripe .theme-label {
+      background: linear-gradient(135deg, #635BFF 0%, #0055D4 100%);
+      color: white;
+    }
+    
+    /* ============================================
+       SHARED MODAL STYLING
+       ============================================ */
+    .modal-demo {
+      background: var(--bg-page);
+      padding: 0;
+    }
+    
+    .modal-header {
+      padding: 20px 24px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    .modal-title-icon {
+      font-size: 20px;
+    }
+    
+    .badges {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    
+    .badge {
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+    
+    .notion .badge-difficulty {
+      background: var(--phase-understand-bg);
+      color: var(--phase-understand);
+    }
+    
+    .notion .badge-category {
+      background: var(--bg-card);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+    
+    .linear .badge-difficulty {
+      background: var(--phase-understand-bg);
+      color: var(--phase-understand);
+    }
+    
+    .linear .badge-category {
+      background: var(--bg-hover);
+      color: var(--text-secondary);
+    }
+    
+    .stripe .badge-difficulty {
+      background: var(--phase-understand-bg);
+      color: var(--phase-understand);
+    }
+    
+    .stripe .badge-category {
+      background: var(--bg-hover);
+      color: var(--text-secondary);
+    }
+    
+    /* Tabs - This is where multi-color shines */
+    .tabs {
+      display: flex;
+      gap: 8px;
+      padding: 16px 24px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+    }
+    
+    .tab {
+      padding: 12px 16px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s;
+      min-width: 90px;
+    }
+    
+    .tab-icon {
+      font-size: 20px;
+    }
+    
+    /* Notion Tabs */
+    .notion .tab {
+      background: var(--bg-card);
+      color: var(--text-muted);
+      border-color: var(--border);
+    }
+    
+    .notion .tab.understand { 
+      background: var(--phase-understand-bg); 
+      color: var(--phase-understand); 
+      border-color: var(--phase-understand);
+    }
+    .notion .tab.approach { 
+      background: var(--phase-approach-bg); 
+      color: var(--phase-approach); 
+      border-color: var(--phase-approach);
+    }
+    .notion .tab.solution { 
+      background: var(--phase-solution-bg); 
+      color: var(--phase-solution); 
+      border-color: var(--phase-solution);
+    }
+    
+    /* Linear Tabs */
+    .linear .tab {
+      background: var(--bg-card);
+      color: var(--text-muted);
+      border-color: var(--border);
+    }
+    
+    .linear .tab.understand { 
+      background: var(--phase-understand-bg); 
+      color: var(--phase-understand); 
+      border-color: var(--phase-understand);
+      box-shadow: 0 4px 12px rgba(91, 108, 249, 0.2);
+    }
+    .linear .tab.approach { 
+      background: var(--phase-approach-bg); 
+      color: var(--phase-approach); 
+      border-color: var(--phase-approach);
+      box-shadow: 0 4px 12px rgba(168, 85, 247, 0.2);
+    }
+    .linear .tab.solution { 
+      background: var(--phase-solution-bg); 
+      color: var(--phase-solution); 
+      border-color: var(--phase-solution);
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+    }
+    
+    /* Stripe Tabs */
+    .stripe .tab {
+      background: var(--bg-card);
+      color: var(--text-muted);
+      border-color: var(--border);
+    }
+    
+    .stripe .tab.understand { 
+      background: var(--phase-understand-bg); 
+      color: var(--phase-understand); 
+      border-color: var(--phase-understand);
+    }
+    .stripe .tab.approach { 
+      background: var(--phase-approach-bg); 
+      color: var(--phase-approach); 
+      border-color: var(--phase-approach);
+    }
+    .stripe .tab.solution { 
+      background: var(--phase-solution-bg); 
+      color: var(--phase-solution); 
+      border-color: var(--phase-solution);
+    }
+    
+    /* Content */
+    .content {
+      padding: 20px 24px;
+    }
+    
+    .section {
+      background: var(--bg-card);
+      border-radius: 12px;
+      margin-bottom: 16px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+    }
+    
+    .section-header {
+      padding: 14px 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-primary);
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .section-header-icon {
+      font-size: 18px;
+    }
+    
+    .section-content {
+      padding: 16px 18px;
+      font-size: 14px;
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+    
+    .section-content strong {
+      color: var(--text-primary);
+    }
+    
+    /* Color-coded section borders */
+    .notion .section.understand { border-left: 4px solid var(--phase-understand); }
+    .notion .section.approach { border-left: 4px solid var(--phase-approach); }
+    .notion .section.solution { border-left: 4px solid var(--phase-solution); }
+    
+    .linear .section.understand { border-left: 4px solid var(--phase-understand); }
+    .linear .section.approach { border-left: 4px solid var(--phase-approach); }
+    .linear .section.solution { border-left: 4px solid var(--phase-solution); }
+    
+    .stripe .section.understand { border-left: 4px solid var(--phase-understand); }
+    .stripe .section.approach { border-left: 4px solid var(--phase-approach); }
+    .stripe .section.solution { border-left: 4px solid var(--phase-solution); }
+    
+    /* Interview Tip */
+    .interview-tip {
+      padding: 14px 18px;
+      border-radius: 12px;
+      margin-bottom: 16px;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    
+    .notion .interview-tip {
+      background: linear-gradient(135deg, #FFF9E6 0%, #FEF3CD 100%);
+      border: 1px solid #F5D76E;
+    }
+    
+    .linear .interview-tip {
+      background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+      border: 1px solid #FBBF24;
+    }
+    
+    .stripe .interview-tip {
+      background: linear-gradient(135deg, var(--phase-verify-bg) 0%, #FFF8E1 100%);
+      border: 1px solid var(--phase-verify);
+    }
+    
+    .tip-icon {
+      font-size: 24px;
+      flex-shrink: 0;
+    }
+    
+    .tip-content h4 {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 4px;
+    }
+    
+    .notion .tip-content h4 { color: #B7791F; }
+    .linear .tip-content h4 { color: #D97706; }
+    .stripe .tip-content h4 { color: var(--phase-verify); }
+    
+    .tip-content p {
+      font-size: 13px;
+      font-style: italic;
+      color: var(--text-secondary);
+      line-height: 1.5;
+    }
+    
+    /* Code block */
+    .code-block {
+      border-radius: 10px;
+      padding: 16px;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+      font-size: 12px;
+      margin-top: 12px;
+      overflow-x: auto;
+    }
+    
+    .notion .code-block {
+      background: #F7F6F3;
+      border: 1px solid var(--border);
+      color: var(--text-primary);
+    }
+    
+    .linear .code-block {
+      background: linear-gradient(135deg, #1E1E2E 0%, #2D2D3F 100%);
+      color: #E0E0E0;
+    }
+    
+    .stripe .code-block {
+      background: #0A2540;
+      color: #E0E0E0;
+    }
+    
+    .notion .code-keyword { color: var(--phase-understand); font-weight: 600; }
+    .notion .code-string { color: var(--phase-solution); }
+    .notion .code-comment { color: var(--text-muted); }
+    
+    .linear .code-keyword { color: #C792EA; font-weight: 600; }
+    .linear .code-string { color: #C3E88D; }
+    .linear .code-comment { color: #676E95; }
+    
+    .stripe .code-keyword { color: #635BFF; font-weight: 600; }
+    .stripe .code-string { color: #00A67E; }
+    .stripe .code-comment { color: #697386; }
+    
+    /* Footer */
+    .modal-footer {
+      padding: 14px 24px;
+      background: var(--bg-card);
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .footer-text {
+      font-size: 12px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    
+    .close-btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
+    
+    .notion .close-btn {
+      background: var(--text-primary);
+      color: white;
+    }
+    
+    .linear .close-btn {
+      background: linear-gradient(135deg, #5B6CF9 0%, #A855F7 100%);
+      color: white;
+    }
+    
+    .stripe .close-btn {
+      background: var(--phase-understand);
+      color: white;
+    }
+    
+    .close-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    /* Responsive */
+    @media (max-width: 1200px) {
+      .themes-grid {
+        grid-template-columns: 1fr;
+        max-width: 550px;
+      }
+    }
+    
+    /* Animated gradient on active tabs */
+    .linear .tab.understand,
+    .linear .tab.approach,
+    .linear .tab.solution {
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .linear .tab.understand::before,
+    .linear .tab.approach::before,
+    .linear .tab.solution::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+      animation: shimmer 2s infinite;
+    }
+    
+    @keyframes shimmer {
+      100% { left: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <h1>☀️ Light Theme Options with Multi-Color Phases</h1>
+  <p class="subtitle">Each phase has its own meaningful color • Clean & Professional</p>
+  
+  <div class="themes-grid">
+    
+    <!-- THEME 1: NOTION CLEAN -->
+    <div class="theme-card notion">
+      <div class="theme-label">📝 Option 1: Notion Clean</div>
+      <div class="modal-demo">
+        <div class="modal-header">
+          <div class="modal-title">
+            <span class="modal-title-icon">💎</span>
+            Delivery Cost Tracking System
+          </div>
+          <div class="badges">
+            <span class="badge badge-difficulty">MEDIUM</span>
+            <span class="badge badge-category">LLD/OOP Design</span>
+          </div>
+        </div>
+        
+        <div class="tabs">
+          <div class="tab understand">
+            <span class="tab-icon">🎯</span>
+            UNDERSTAND
+          </div>
+          <div class="tab approach">
+            <span class="tab-icon">🧠</span>
+            APPROACH
+          </div>
+          <div class="tab solution">
+            <span class="tab-icon">💻</span>
+            SOLUTION
+          </div>
+        </div>
+        
+        <div class="content">
+          <div class="interview-tip">
+            <span class="tip-icon">💡</span>
+            <div class="tip-content">
+              <h4>What to say first</h4>
+              <p>"Thank you for this problem. Before I start coding, I'd like to understand the requirements..."</p>
+            </div>
+          </div>
+          
+          <div class="section understand">
+            <div class="section-header">
+              <span class="section-header-icon">🎯</span>
+              First Impressions
+            </div>
+            <div class="section-content">
+              This is a classic <strong>system design / OOP problem</strong>. The core challenge is about architectural decisions.
+              <div class="code-block">
+                <span class="code-keyword">class</span> DeliveryCostTracker:<br>
+                &nbsp;&nbsp;<span class="code-keyword">def</span> __init__(self):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-comment"># HashMap for O(1) lookup</span><br>
+                &nbsp;&nbsp;&nbsp;&nbsp;self.drivers = {}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="modal-footer">
+          <span class="footer-text">Minimal • Clean • Focused</span>
+          <button class="close-btn">Close</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- THEME 2: LINEAR GRADIENT -->
+    <div class="theme-card linear">
+      <div class="theme-label">✨ Option 2: Linear Modern</div>
+      <div class="modal-demo">
+        <div class="modal-header">
+          <div class="modal-title">
+            <span class="modal-title-icon">💎</span>
+            Delivery Cost Tracking System
+          </div>
+          <div class="badges">
+            <span class="badge badge-difficulty">MEDIUM</span>
+            <span class="badge badge-category">LLD/OOP Design</span>
+          </div>
+        </div>
+        
+        <div class="tabs">
+          <div class="tab understand">
+            <span class="tab-icon">🎯</span>
+            UNDERSTAND
+          </div>
+          <div class="tab approach">
+            <span class="tab-icon">🧠</span>
+            APPROACH
+          </div>
+          <div class="tab solution">
+            <span class="tab-icon">💻</span>
+            SOLUTION
+          </div>
+        </div>
+        
+        <div class="content">
+          <div class="interview-tip">
+            <span class="tip-icon">💡</span>
+            <div class="tip-content">
+              <h4>What to say first</h4>
+              <p>"Thank you for this problem. Before I start coding, I'd like to understand the requirements..."</p>
+            </div>
+          </div>
+          
+          <div class="section understand">
+            <div class="section-header">
+              <span class="section-header-icon">🎯</span>
+              First Impressions
+            </div>
+            <div class="section-content">
+              This is a classic <strong>system design / OOP problem</strong>. The core challenge is about architectural decisions.
+              <div class="code-block">
+                <span class="code-keyword">class</span> DeliveryCostTracker:<br>
+                &nbsp;&nbsp;<span class="code-keyword">def</span> __init__(self):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-comment"># HashMap for O(1) lookup</span><br>
+                &nbsp;&nbsp;&nbsp;&nbsp;self.drivers = {}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="modal-footer">
+          <span class="footer-text">Modern • Gradient • Dynamic</span>
+          <button class="close-btn">Close</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- THEME 3: STRIPE ELEGANT -->
+    <div class="theme-card stripe">
+      <div class="theme-label">💳 Option 3: Stripe Professional</div>
+      <div class="modal-demo">
+        <div class="modal-header">
+          <div class="modal-title">
+            <span class="modal-title-icon">💎</span>
+            Delivery Cost Tracking System
+          </div>
+          <div class="badges">
+            <span class="badge badge-difficulty">MEDIUM</span>
+            <span class="badge badge-category">LLD/OOP Design</span>
+          </div>
+        </div>
+        
+        <div class="tabs">
+          <div class="tab understand">
+            <span class="tab-icon">🎯</span>
+            UNDERSTAND
+          </div>
+          <div class="tab approach">
+            <span class="tab-icon">🧠</span>
+            APPROACH
+          </div>
+          <div class="tab solution">
+            <span class="tab-icon">💻</span>
+            SOLUTION
+          </div>
+        </div>
+        
+        <div class="content">
+          <div class="interview-tip">
+            <span class="tip-icon">💡</span>
+            <div class="tip-content">
+              <h4>What to say first</h4>
+              <p>"Thank you for this problem. Before I start coding, I'd like to understand the requirements..."</p>
+            </div>
+          </div>
+          
+          <div class="section understand">
+            <div class="section-header">
+              <span class="section-header-icon">🎯</span>
+              First Impressions
+            </div>
+            <div class="section-content">
+              This is a classic <strong>system design / OOP problem</strong>. The core challenge is about architectural decisions.
+              <div class="code-block">
+                <span class="code-keyword">class</span> DeliveryCostTracker:<br>
+                &nbsp;&nbsp;<span class="code-keyword">def</span> __init__(self):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-comment"># HashMap for O(1) lookup</span><br>
+                &nbsp;&nbsp;&nbsp;&nbsp;self.drivers = {}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="modal-footer">
+          <span class="footer-text">Professional • Enterprise • Trusted</span>
+          <button class="close-btn">Close</button>
+        </div>
+      </div>
+    </div>
+    
+  </div>
+  
+  <div style="text-align: center; margin-top: 50px; color: white;">
+    <p style="font-size: 18px; margin-bottom: 12px;">🌈 <strong>Notice:</strong> Each phase tab has its own color!</p>
+    <p style="font-size: 14px; opacity: 0.8;">
+      <span style="color: #5B6CF9;">●</span> Understand = Blue &nbsp;&nbsp;
+      <span style="color: #A855F7;">●</span> Approach = Purple &nbsp;&nbsp;
+      <span style="color: #10B981;">●</span> Solution = Green
+    </p>
+    <p style="margin-top: 24px; font-size: 14px; opacity: 0.7;">
+      Open: <code style="background: rgba(0,0,0,0.3); padding: 4px 10px; border-radius: 6px;">http://localhost:3000/theme-demo-light.html</code>
+    </p>
+  </div>
+</body>
+</html>

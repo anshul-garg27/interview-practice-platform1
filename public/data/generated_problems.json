@@ -1,0 +1,2184 @@
+{
+  "generatedAt": "2026-01-13T11:21:11.974Z",
+  "totalGenerated": 5,
+  "problems": [
+    {
+      "id": "analytics_metrics",
+      "originalData": {
+        "name": "Analytics / Metrics System",
+        "category": "HLD/System Design",
+        "sources": [
+          {
+            "id": "034_rippling_sde_2_rejected",
+            "roundName": "Pre-Screening Round"
+          },
+          {
+            "id": "045_rippling_interview_question",
+            "roundName": "Coding Round (assumed)"
+          },
+          {
+            "id": "057_rippling_sde_2_interview_experience_2024",
+            "roundName": "Screening Round"
+          },
+          {
+            "id": "024_rippling_sde_2_offer_india",
+            "roundName": "Onsite Round 1: Coding + System Design"
+          },
+          {
+            "id": "061_rippling_senior_software_engineer_beng",
+            "roundName": "High Level Design Round"
+          },
+          {
+            "id": "060_rippling_sde_2_interview_experience",
+            "roundName": "DSA Round 1"
+          },
+          {
+            "id": "069_rippling_interview_experience_sse_reject",
+            "roundName": "System Design Round"
+          },
+          {
+            "id": "068_rippling_l7_india_february_2024_offer",
+            "roundName": "Onsite - System Design"
+          },
+          {
+            "id": "105_rippling_l6_may22",
+            "roundName": "System Design"
+          },
+          {
+            "id": "098_interview_experience_with_rippling_l6",
+            "roundName": "System Design"
+          }
+        ],
+        "timesAsked": 10
+      },
+      "generatedProblem": {
+        "title": "Song Play Analytics System",
+        "difficulty": "medium",
+        "category": "Low-Level Design / System Design",
+        "estimatedTime": "45-60 minutes",
+        "tags": [
+          "Object-Oriented Design",
+          "Hash Maps",
+          "Sorting",
+          "Analytics",
+          "Data Structures"
+        ],
+        "problemStatement": {
+          "description": "You are tasked with designing a Song Play Analytics System for a music streaming platform. The system needs to track song plays across multiple users and generate analytics reports based on unique listener counts.\n\nThe core functionality involves maintaining a library of songs, recording play events, and generating sorted analytics reports. Each song in the library is assigned a unique auto-incrementing ID when added. When a user plays a song, the system records this interaction, but each user should only be counted once per song regardless of how many times they play it.\n\nThe analytics report should display all songs sorted by their unique listener count in descending order. When two songs have the same number of unique listeners, they should be sorted lexicographically by name in ascending order. The system must handle edge cases such as invalid song IDs and duplicate play events gracefully.\n\nThis problem simulates a real-world analytics service similar to platforms like Amplitude or Mixpanel, where tracking unique user interactions and generating real-time reports are critical features.",
+          "requirements": [
+            "Implement a SongAnalytics class that initializes an empty analytics system",
+            "Implement add_song(name) - Adds a song with the given name, assigns it a unique auto-incrementing ID starting from 1, and returns the assigned ID",
+            "Implement play_song(song_id, user_id) - Records a play event for a song by a user. If the song_id does not exist, print an error message. Each user is counted only once per song even if they play it multiple times",
+            "Implement print_analytics() - Prints a summary of all songs sorted by unique listener count (descending), with ties broken by lexicographical name order (ascending)"
+          ],
+          "constraints": [
+            "1 <= song name length <= 100",
+            "Song names contain only alphanumeric characters and spaces",
+            "1 <= user_id <= 10^6",
+            "1 <= total number of songs <= 10^4",
+            "1 <= total number of play events <= 10^6",
+            "Song IDs are auto-incrementing integers starting from 1",
+            "Multiple calls to print_analytics() should be efficient"
+          ],
+          "notes": [
+            "Song IDs start from 1, not 0",
+            "A user playing the same song multiple times should only count as 1 unique listener",
+            "Error messages for invalid song_id should follow the exact format: 'Error: Song ID <song_id> does not exist.'",
+            "Songs with 0 plays should still appear in the analytics output",
+            "The output format for each song should be: '<song_name> (<count> unique listeners)'"
+          ]
+        },
+        "methodSignatures": [
+          {
+            "name": "SongAnalytics",
+            "description": "Constructor that initializes the analytics system",
+            "parameters": [],
+            "returnType": "void",
+            "returnDescription": "Initializes an empty song analytics system"
+          },
+          {
+            "name": "add_song",
+            "description": "Adds a new song to the system with an auto-incrementing ID",
+            "parameters": [
+              {
+                "name": "name",
+                "type": "string",
+                "description": "The name of the song to add"
+              }
+            ],
+            "returnType": "int",
+            "returnDescription": "The unique ID assigned to the song (starting from 1)"
+          },
+          {
+            "name": "play_song",
+            "description": "Records a play event for a song by a user",
+            "parameters": [
+              {
+                "name": "song_id",
+                "type": "int",
+                "description": "The ID of the song being played"
+              },
+              {
+                "name": "user_id",
+                "type": "int",
+                "description": "The ID of the user playing the song"
+              }
+            ],
+            "returnType": "void",
+            "returnDescription": "Nothing returned; prints error if song_id is invalid"
+          },
+          {
+            "name": "print_analytics",
+            "description": "Prints analytics summary sorted by unique listener count",
+            "parameters": [],
+            "returnType": "void",
+            "returnDescription": "Prints each song with its unique listener count to stdout"
+          }
+        ],
+        "examples": [
+          {
+            "title": "Example 1: Basic Usage",
+            "input": "Initialize system, add 3 songs, record various plays, print analytics",
+            "operations": [
+              {
+                "call": "SongAnalytics()",
+                "result": "null",
+                "explanation": "Initialize the analytics system"
+              },
+              {
+                "call": "add_song(\"Song A\")",
+                "result": "1",
+                "explanation": "Adds Song A with ID 1"
+              },
+              {
+                "call": "add_song(\"Song B\")",
+                "result": "2",
+                "explanation": "Adds Song B with ID 2"
+              },
+              {
+                "call": "add_song(\"Song C\")",
+                "result": "3",
+                "explanation": "Adds Song C with ID 3"
+              },
+              {
+                "call": "play_song(1, 1)",
+                "result": "null",
+                "explanation": "User 1 plays Song A"
+              },
+              {
+                "call": "play_song(1, 2)",
+                "result": "null",
+                "explanation": "User 2 plays Song A"
+              },
+              {
+                "call": "play_song(2, 1)",
+                "result": "null",
+                "explanation": "User 1 plays Song B"
+              },
+              {
+                "call": "play_song(3, 3)",
+                "result": "null",
+                "explanation": "User 3 plays Song C"
+              },
+              {
+                "call": "play_song(3, 3)",
+                "result": "null",
+                "explanation": "User 3 plays Song C again (duplicate, not counted)"
+              },
+              {
+                "call": "print_analytics()",
+                "result": "See output",
+                "explanation": "Print sorted analytics"
+              }
+            ],
+            "output": "Song A (2 unique listeners)\nSong B (1 unique listeners)\nSong C (1 unique listeners)",
+            "explanation": "Song A has 2 unique listeners (users 1 and 2), so it appears first. Song B and Song C both have 1 unique listener, so they are sorted alphabetically. Note that user 3's duplicate play of Song C is not counted twice."
+          },
+          {
+            "title": "Example 2: Handling Invalid Song ID",
+            "input": "Attempt to play a non-existent song",
+            "operations": [
+              {
+                "call": "SongAnalytics()",
+                "result": "null",
+                "explanation": "Initialize the analytics system"
+              },
+              {
+                "call": "add_song(\"My Song\")",
+                "result": "1",
+                "explanation": "Adds My Song with ID 1"
+              },
+              {
+                "call": "play_song(5, 100)",
+                "result": "Error: Song ID 5 does not exist.",
+                "explanation": "Song ID 5 was never added"
+              }
+            ],
+            "output": "Error: Song ID 5 does not exist.",
+            "explanation": "Since song ID 5 doesn't exist, an error message is printed"
+          },
+          {
+            "title": "Example 3: Lexicographical Tie-Breaking",
+            "input": "Multiple songs with same listener count",
+            "operations": [
+              {
+                "call": "SongAnalytics()",
+                "result": "null",
+                "explanation": "Initialize the analytics system"
+              },
+              {
+                "call": "add_song(\"Zebra\")",
+                "result": "1",
+                "explanation": "Adds Zebra with ID 1"
+              },
+              {
+                "call": "add_song(\"Apple\")",
+                "result": "2",
+                "explanation": "Adds Apple with ID 2"
+              },
+              {
+                "call": "add_song(\"Mango\")",
+                "result": "3",
+                "explanation": "Adds Mango with ID 3"
+              },
+              {
+                "call": "play_song(1, 1)",
+                "result": "null",
+                "explanation": "User 1 plays Zebra"
+              },
+              {
+                "call": "play_song(2, 2)",
+                "result": "null",
+                "explanation": "User 2 plays Apple"
+              },
+              {
+                "call": "play_song(3, 3)",
+                "result": "null",
+                "explanation": "User 3 plays Mango"
+              },
+              {
+                "call": "print_analytics()",
+                "result": "See output",
+                "explanation": "All songs have 1 listener, sort alphabetically"
+              }
+            ],
+            "output": "Apple (1 unique listeners)\nMango (1 unique listeners)\nZebra (1 unique listeners)",
+            "explanation": "All three songs have 1 unique listener each, so they are sorted alphabetically: Apple < Mango < Zebra"
+          }
+        ],
+        "testCases": [
+          {
+            "name": "Test Case 1: Basic Functionality",
+            "input": "add_song(\"Rock\"), add_song(\"Pop\"), play_song(1,1), play_song(1,2), play_song(2,1), print_analytics()",
+            "expectedOutput": "Rock (2 unique listeners)\nPop (1 unique listeners)",
+            "explanation": "Rock has 2 unique listeners, Pop has 1"
+          },
+          {
+            "name": "Test Case 2: Duplicate Plays Same User",
+            "input": "add_song(\"Jazz\"), play_song(1,5), play_song(1,5), play_song(1,5), print_analytics()",
+            "expectedOutput": "Jazz (1 unique listeners)",
+            "explanation": "User 5 played Jazz 3 times but only counts as 1 unique listener"
+          },
+          {
+            "name": "Test Case 3: Invalid Song ID",
+            "input": "add_song(\"Classical\"), play_song(99, 1)",
+            "expectedOutput": "Error: Song ID 99 does not exist.",
+            "explanation": "Song ID 99 was never added to the system"
+          },
+          {
+            "name": "Test Case 4: Songs with Zero Plays",
+            "input": "add_song(\"Unplayed Song\"), print_analytics()",
+            "expectedOutput": "Unplayed Song (0 unique listeners)",
+            "explanation": "Songs with no plays should still appear in analytics with 0 listeners"
+          },
+          {
+            "name": "Test Case 5: Complex Sorting",
+            "input": "add_song(\"Charlie\"), add_song(\"Alpha\"), add_song(\"Beta\"), play_song(1,1), play_song(1,2), play_song(2,3), play_song(2,4), play_song(3,5), print_analytics()",
+            "expectedOutput": "Alpha (2 unique listeners)\nCharlie (2 unique listeners)\nBeta (1 unique listeners)",
+            "explanation": "Alpha and Charlie both have 2 listeners; Alpha comes first alphabetically. Beta has 1 listener."
+          },
+          {
+            "name": "Test Case 6: Large Scale Test",
+            "input": "Add 3 songs, 1000 unique users play song 1, 500 play song 2, 100 play song 3",
+            "expectedOutput": "Song1 (1000 unique listeners)\nSong2 (500 unique listeners)\nSong3 (100 unique listeners)",
+            "explanation": "Tests efficiency with many users"
+          }
+        ],
+        "followUpProblems": [
+          {
+            "part": 2,
+            "title": "Recently Played Unique Songs",
+            "difficulty": "medium",
+            "description": "Extend the system to track recently played songs per user and provide methods to retrieve a user's most recently played unique songs. This adds a temporal dimension to the analytics.",
+            "newRequirements": [
+              "Implement print_recently_played(user_id) - Prints all unique songs recently played by the user, most recent first",
+              "Implement print_recently_played(user_id, k) - Prints the k most recently played unique songs by the user, most recent first",
+              "A song should only appear once in the output even if played multiple times; use the most recent play time",
+              "If a user replays a song they've played before, that song should move to the most recent position"
+            ],
+            "hints": [
+              "Consider using a data structure that maintains insertion order",
+              "A LinkedHashSet or OrderedDict can help track unique items while maintaining order",
+              "When a song is replayed, you need to remove it and re-add it to update its position"
+            ],
+            "testCases": [
+              {
+                "name": "Recently Played Basic",
+                "input": "add_song(\"A\"), add_song(\"B\"), add_song(\"C\"), play_song(1,1), play_song(2,1), play_song(3,1), print_recently_played(1)",
+                "expectedOutput": "C\nB\nA",
+                "explanation": "User 1 played A, then B, then C. Most recent first: C, B, A"
+              },
+              {
+                "name": "Recently Played with Limit",
+                "input": "add_song(\"A\"), add_song(\"B\"), add_song(\"C\"), play_song(1,1), play_song(2,1), play_song(3,1), print_recently_played(1, 2)",
+                "expectedOutput": "C\nB",
+                "explanation": "Only the 2 most recent songs: C and B"
+              },
+              {
+                "name": "Recently Played with Replay",
+                "input": "add_song(\"X\"), add_song(\"Y\"), play_song(1,1), play_song(2,1), play_song(1,1), print_recently_played(1)",
+                "expectedOutput": "X\nY",
+                "explanation": "User replayed X after Y, so X is now most recent. Only unique songs shown."
+              }
+            ]
+          },
+          {
+            "part": 3,
+            "title": "Favorite Songs Feature",
+            "difficulty": "medium",
+            "description": "Add the ability for users to star/unstar songs as favorites and retrieve their recently played favorite songs.",
+            "newRequirements": [
+              "Implement star_song(user_id, song_id) - Marks a song as favorite for a user",
+              "Implement unstar_song(user_id, song_id) - Removes a song from user's favorites",
+              "Implement print_recent_favorites(user_id, n) - Prints the last n favorite songs played by the user (unique, most recent first)",
+              "Handle edge cases: starring already-starred songs, unstarring non-favorite songs"
+            ],
+            "hints": [
+              "Maintain a separate favorites set per user",
+              "Filter the recently played list by the favorites set",
+              "Consider the intersection of recently played and favorites"
+            ],
+            "testCases": [
+              {
+                "name": "Favorite Songs Basic",
+                "input": "add_song(\"A\"), add_song(\"B\"), star_song(1, 1), play_song(1,1), play_song(2,1), print_recent_favorites(1, 5)",
+                "expectedOutput": "A",
+                "explanation": "Only song A is starred, so only A appears in favorites"
+              },
+              {
+                "name": "Unstar Song",
+                "input": "add_song(\"A\"), star_song(1, 1), play_song(1,1), unstar_song(1, 1), print_recent_favorites(1, 5)",
+                "expectedOutput": "(empty)",
+                "explanation": "Song A was unstarred, so no favorites to display"
+              }
+            ]
+          }
+        ],
+        "hints": [
+          {
+            "level": 1,
+            "hint": "Think about what data structures you need to store songs, map IDs to song info, and track unique listeners per song."
+          },
+          {
+            "level": 2,
+            "hint": "Use a HashMap to map song IDs to Song objects. Each Song object should contain its name and a Set of user IDs to track unique listeners efficiently."
+          },
+          {
+            "level": 3,
+            "hint": "For print_analytics, collect all songs into a list, then sort using a custom comparator that first compares by listener count (descending) and then by name (ascending). Using a Set for user tracking gives O(1) duplicate detection."
+          }
+        ],
+        "commonMistakes": [
+          {
+            "mistake": "Counting duplicate plays by the same user",
+            "why": "The requirement states each user should only be counted once per song",
+            "correction": "Use a Set to store user IDs per song; Set.add() naturally handles duplicates"
+          },
+          {
+            "mistake": "Starting song IDs from 0 instead of 1",
+            "why": "The specification clearly states IDs should start from 1",
+            "correction": "Initialize your ID counter to 1 and increment after assignment"
+          },
+          {
+            "mistake": "Incorrect sorting order for ties",
+            "why": "Songs with same listener count should be sorted alphabetically (ascending), not descending",
+            "correction": "When listener counts are equal, compare names in ascending order: nameA.compareTo(nameB)"
+          },
+          {
+            "mistake": "Not handling invalid song IDs",
+            "why": "The system should gracefully handle attempts to play non-existent songs",
+            "correction": "Check if song_id exists before recording play; if not, print the exact error message format specified"
+          },
+          {
+            "mistake": "Using PriorityQueue with complex generic types in some online compilers",
+            "why": "Some HackerRank/online compilers have issues with certain generic syntax",
+            "correction": "Consider using a List and sorting it, or simplify your comparator implementation"
+          },
+          {
+            "mistake": "Omitting songs with zero plays from analytics",
+            "why": "All songs in the system should appear in analytics, even unplayed ones",
+            "correction": "Iterate through all songs when printing analytics, not just those with plays"
+          }
+        ],
+        "evaluationCriteria": [
+          {
+            "criteria": "Correctness",
+            "weight": "35%",
+            "description": "All methods work correctly, proper error handling, correct sorting logic"
+          },
+          {
+            "criteria": "Code Quality",
+            "weight": "25%",
+            "description": "Clean, readable, well-organized code with appropriate class/method design"
+          },
+          {
+            "criteria": "Data Structure Choice",
+            "weight": "20%",
+            "description": "Appropriate use of HashMap, Set, and List for efficient operations"
+          },
+          {
+            "criteria": "Efficiency",
+            "weight": "10%",
+            "description": "O(1) for add_song and play_song, O(n log n) for print_analytics"
+          },
+          {
+            "criteria": "Edge Case Handling",
+            "weight": "10%",
+            "description": "Handles invalid IDs, duplicate plays, empty system, and tie-breaking correctly"
+          }
+        ],
+        "relatedProblems": [
+          "LeetCode 347 - Top K Frequent Elements",
+          "LeetCode 355 - Design Twitter",
+          "LeetCode 146 - LRU Cache",
+          "LeetCode 460 - LFU Cache",
+          "LeetCode 895 - Maximum Frequency Stack"
+        ],
+        "interviewTips": [
+          "Start by clarifying requirements: ask about ID starting point, sorting rules, and error handling expectations",
+          "Design your data structures first before writing code - explain your choices to the interviewer",
+          "Use a Song class to encapsulate song data (id, name, Set of listeners) for cleaner code",
+          "Discuss time and space complexity of each method as you implement them",
+          "Test your sorting logic with a quick example on paper before coding",
+          "Handle edge cases explicitly and mention them to show thoroughness",
+          "If time permits, discuss how the system could scale with distributed storage and caching",
+          "For follow-ups, mention that LinkedHashSet or similar ordered data structures would be useful for tracking recency"
+        ]
+      },
+      "generatedAt": "2026-01-13T11:16:16.313Z"
+    },
+    {
+      "id": "news_feed_aggregator",
+      "originalData": {
+        "name": "News Aggregator / Feed System",
+        "category": "HLD/System Design",
+        "sources": [
+          {
+            "id": "006_rippling_staff_engineer_interview_expe",
+            "roundName": "HLD"
+          },
+          {
+            "id": "061_rippling_senior_software_engineer_beng",
+            "roundName": "Screening - High Level Design Round"
+          },
+          {
+            "id": "068_rippling_l7_india_february_2024_offer",
+            "roundName": "Tech Screen Design Round"
+          },
+          {
+            "id": "103_rippling_sse_bangalore_india_july_20",
+            "roundName": "HLD Round"
+          },
+          {
+            "id": "098_interview_experience_with_rippling_l6",
+            "roundName": "System Design"
+          },
+          {
+            "id": "022_rippling_senior_software_engineer",
+            "roundName": "System Design Round"
+          },
+          {
+            "id": "075_senior_software_engineer_rippling",
+            "roundName": "On-Site Round 2 - News Aggregator System Design"
+          },
+          {
+            "id": "105_rippling_l6_may22",
+            "roundName": "System Design"
+          },
+          {
+            "id": "024_rippling_sde_2_offer_india",
+            "roundName": "Onsite Round 4: System Design"
+          },
+          {
+            "id": "060_rippling_sde_2_interview_experience",
+            "roundName": "High Level Design"
+          }
+        ],
+        "timesAsked": 10
+      },
+      "generatedProblem": {
+        "title": "News Aggregator / Feed System",
+        "difficulty": "medium",
+        "category": "HLD/System Design",
+        "estimatedTime": "45-60 minutes",
+        "tags": [
+          "system-design",
+          "feed-system",
+          "personalization",
+          "scalability",
+          "caching",
+          "distributed-systems"
+        ],
+        "problemStatement": {
+          "description": "Design a News Aggregator system similar to Google News or Feedly that fetches news articles from multiple publishers and generates personalized feeds for users based on their interests and subscriptions.\n\nThe system needs to handle content aggregation from thousands of news publishers, each providing an API endpoint that returns their latest 25 articles. Users should be able to subscribe to specific categories (e.g., Technology, Sports, Education) and individual publishers (e.g., BBC, CNN, NDTV). The home page feed should display a personalized, ranked list of articles based on the user's preferences.\n\nYour design should address scalability to handle millions of users, fault tolerance for high availability, efficient content fetching and deduplication, real-time or near real-time updates, and a ranking algorithm for feed generation. Consider the tradeoffs between consistency and availability, database selection, and caching strategies.\n\nYou are expected to design the high-level architecture, define core components and their interactions, discuss data models, and justify your technology choices.",
+          "requirements": [
+            "Design a content fetching service that can poll thousands of publishers efficiently",
+            "Implement a user subscription system for categories and publishers",
+            "Design a feed generation service that creates personalized feeds based on user interests",
+            "Implement a ranking algorithm for ordering articles in the feed",
+            "Handle duplicate and similar article detection across publishers",
+            "Design for scalability to support 10M+ daily active users",
+            "Ensure fault tolerance and high availability (99.9% uptime)",
+            "Implement caching strategy for optimal performance"
+          ],
+          "constraints": [
+            "1 <= number of publishers <= 100,000",
+            "Each publisher provides up to 25 latest articles per API call",
+            "10,000,000 daily active users",
+            "Each user can subscribe to up to 50 categories and 200 publishers",
+            "Feed should load within 200ms for 95th percentile",
+            "Articles should appear in feed within 5 minutes of publication",
+            "System should handle 100,000 requests per second at peak"
+          ],
+          "notes": [
+            "Focus on the high-level architecture first, then dive into specific components",
+            "Be prepared to justify SQL vs NoSQL decisions",
+            "Consider CAP theorem tradeoffs explicitly",
+            "Discuss monitoring and alerting strategies",
+            "Address how to handle publisher API failures gracefully"
+          ]
+        },
+        "methodSignatures": [
+          {
+            "name": "fetchArticlesFromPublisher",
+            "description": "Fetches latest articles from a specific publisher's API endpoint",
+            "parameters": [
+              {
+                "name": "publisherId",
+                "type": "string",
+                "description": "Unique identifier for the publisher"
+              },
+              {
+                "name": "endpoint",
+                "type": "string",
+                "description": "Publisher's API endpoint URL"
+              }
+            ],
+            "returnType": "List<Article>",
+            "returnDescription": "List of up to 25 latest articles from the publisher"
+          },
+          {
+            "name": "subscribeToCategory",
+            "description": "Subscribes a user to a news category",
+            "parameters": [
+              {
+                "name": "userId",
+                "type": "string",
+                "description": "Unique user identifier"
+              },
+              {
+                "name": "categoryId",
+                "type": "string",
+                "description": "Category to subscribe to"
+              }
+            ],
+            "returnType": "boolean",
+            "returnDescription": "True if subscription successful, false otherwise"
+          },
+          {
+            "name": "subscribeToPublisher",
+            "description": "Subscribes a user to a specific publisher",
+            "parameters": [
+              {
+                "name": "userId",
+                "type": "string",
+                "description": "Unique user identifier"
+              },
+              {
+                "name": "publisherId",
+                "type": "string",
+                "description": "Publisher to subscribe to"
+              }
+            ],
+            "returnType": "boolean",
+            "returnDescription": "True if subscription successful, false otherwise"
+          },
+          {
+            "name": "generateFeed",
+            "description": "Generates a personalized news feed for a user",
+            "parameters": [
+              {
+                "name": "userId",
+                "type": "string",
+                "description": "Unique user identifier"
+              },
+              {
+                "name": "pageSize",
+                "type": "int",
+                "description": "Number of articles to return"
+              },
+              {
+                "name": "pageToken",
+                "type": "string",
+                "description": "Pagination token for subsequent pages"
+              }
+            ],
+            "returnType": "FeedResponse",
+            "returnDescription": "Paginated list of ranked articles with next page token"
+          },
+          {
+            "name": "rankArticles",
+            "description": "Ranks articles based on relevance, recency, and user preferences",
+            "parameters": [
+              {
+                "name": "articles",
+                "type": "List<Article>",
+                "description": "List of candidate articles"
+              },
+              {
+                "name": "userProfile",
+                "type": "UserProfile",
+                "description": "User's preferences and history"
+              }
+            ],
+            "returnType": "List<RankedArticle>",
+            "returnDescription": "Articles sorted by relevance score"
+          }
+        ],
+        "examples": [
+          {
+            "title": "Example 1: Basic Feed Generation",
+            "input": "User 'user123' subscribes to 'Technology' category and 'TechCrunch' publisher",
+            "operations": [
+              {
+                "call": "subscribeToCategory('user123', 'technology')",
+                "result": "true",
+                "explanation": "User subscribes to Technology category"
+              },
+              {
+                "call": "subscribeToPublisher('user123', 'techcrunch')",
+                "result": "true",
+                "explanation": "User subscribes to TechCrunch"
+              },
+              {
+                "call": "generateFeed('user123', 20, null)",
+                "result": "FeedResponse with 20 articles",
+                "explanation": "Returns personalized feed with technology articles, prioritizing TechCrunch"
+              }
+            ],
+            "output": "Feed containing ranked technology articles with TechCrunch articles weighted higher",
+            "explanation": "The feed generation considers both category subscription and publisher preference to rank articles"
+          },
+          {
+            "title": "Example 2: Multi-Category User",
+            "input": "User 'user456' subscribes to 'Sports', 'Finance', and 'Entertainment' categories",
+            "operations": [
+              {
+                "call": "subscribeToCategory('user456', 'sports')",
+                "result": "true",
+                "explanation": "User subscribes to Sports"
+              },
+              {
+                "call": "subscribeToCategory('user456', 'finance')",
+                "result": "true",
+                "explanation": "User subscribes to Finance"
+              },
+              {
+                "call": "subscribeToCategory('user456', 'entertainment')",
+                "result": "true",
+                "explanation": "User subscribes to Entertainment"
+              },
+              {
+                "call": "generateFeed('user456', 30, null)",
+                "result": "FeedResponse with 30 articles",
+                "explanation": "Returns mixed feed from all three categories"
+              }
+            ],
+            "output": "Balanced feed with articles from Sports, Finance, and Entertainment categories",
+            "explanation": "Feed balances articles across subscribed categories based on recency and engagement signals"
+          }
+        ],
+        "testCases": [
+          {
+            "name": "Test Case 1: New User with No Subscriptions",
+            "input": "generateFeed('newUser', 20, null) for user with no subscriptions",
+            "expectedOutput": "Feed with trending/popular articles across all categories",
+            "explanation": "System should handle cold-start by showing popular content"
+          },
+          {
+            "name": "Test Case 2: Publisher API Failure",
+            "input": "fetchArticlesFromPublisher('publisher1', 'https://api.down.com/articles')",
+            "expectedOutput": "Graceful degradation - return cached articles or skip publisher",
+            "explanation": "System should be fault-tolerant to individual publisher failures"
+          },
+          {
+            "name": "Test Case 3: Duplicate Article Detection",
+            "input": "Same news story reported by CNN, BBC, and Reuters",
+            "expectedOutput": "Single article in feed with sources attributed",
+            "explanation": "Deduplication should cluster similar articles and show primary source"
+          },
+          {
+            "name": "Test Case 4: High Load Feed Generation",
+            "input": "100,000 concurrent generateFeed requests",
+            "expectedOutput": "All requests complete within 200ms SLA",
+            "explanation": "System should scale horizontally to handle peak traffic"
+          },
+          {
+            "name": "Test Case 5: Subscription Limit Enforcement",
+            "input": "User tries to subscribe to 51st category (limit is 50)",
+            "expectedOutput": "Subscription rejected with appropriate error",
+            "explanation": "System should enforce subscription limits per user"
+          }
+        ],
+        "followUpProblems": [
+          {
+            "part": 2,
+            "title": "Real-time Push Notifications for Breaking News",
+            "difficulty": "hard",
+            "description": "Extend the system to support real-time push notifications for breaking news. When a high-priority article is published, users who are subscribed to relevant categories or publishers should receive immediate push notifications.",
+            "newRequirements": [
+              "Design a notification service that can push updates to millions of users within seconds",
+              "Implement priority classification for articles (breaking, important, regular)",
+              "Add user notification preferences (frequency, quiet hours, priority threshold)",
+              "Design for exactly-once delivery semantics where possible"
+            ],
+            "hints": [
+              "Consider using a pub/sub architecture for fan-out",
+              "Think about batching notifications for efficiency",
+              "Evaluate push vs pull notification strategies"
+            ],
+            "testCases": [
+              {
+                "name": "Breaking News Fan-out",
+                "input": "Breaking news article in 'Politics' category, 5M subscribers",
+                "expectedOutput": "All 5M users notified within 30 seconds",
+                "explanation": "System should efficiently fan-out to massive user base"
+              }
+            ]
+          },
+          {
+            "part": 3,
+            "title": "ML-Powered Content Recommendations",
+            "difficulty": "hard",
+            "description": "Add machine learning-based recommendations beyond explicit subscriptions. The system should learn from user behavior (clicks, read time, shares) to improve feed personalization.",
+            "newRequirements": [
+              "Design a feature store for user behavior signals",
+              "Implement online model serving for real-time predictions",
+              "Add A/B testing framework for ranking algorithm experiments",
+              "Design feedback loop for model retraining"
+            ],
+            "hints": [
+              "Consider two-tower models for efficient retrieval",
+              "Think about feature freshness vs computation cost tradeoffs",
+              "Evaluate batch vs real-time feature computation"
+            ],
+            "testCases": [
+              {
+                "name": "Implicit Interest Detection",
+                "input": "User frequently reads AI articles but not subscribed to Technology",
+                "expectedOutput": "AI articles appear in feed with high ranking",
+                "explanation": "ML model should detect implicit interests from behavior"
+              }
+            ]
+          },
+          {
+            "part": 4,
+            "title": "Global Multi-Region Deployment",
+            "difficulty": "hard",
+            "description": "Design the system for global deployment across multiple regions with local content relevance and compliance with data residency requirements.",
+            "newRequirements": [
+              "Design multi-region data replication strategy",
+              "Handle region-specific content and publishers",
+              "Implement GDPR and data residency compliance",
+              "Design for cross-region failover"
+            ],
+            "hints": [
+              "Consider eventual consistency for cross-region data",
+              "Think about content localization and language",
+              "Evaluate CDN strategies for static content"
+            ],
+            "testCases": [
+              {
+                "name": "Regional Failover",
+                "input": "EU-West region becomes unavailable",
+                "expectedOutput": "EU users automatically routed to EU-Central with <1s latency increase",
+                "explanation": "System should handle regional failures gracefully"
+              }
+            ]
+          }
+        ],
+        "hints": [
+          {
+            "level": 1,
+            "hint": "Start by identifying the main components: Content Ingestion, Storage, Feed Generation, and API Layer. Think about how data flows between them."
+          },
+          {
+            "level": 2,
+            "hint": "For content fetching at scale, consider a distributed crawler with rate limiting per publisher. Use message queues to decouple fetching from processing. For feed generation, evaluate push (fan-out on write) vs pull (fan-out on read) models."
+          },
+          {
+            "level": 3,
+            "hint": "Use a hybrid approach: push for users with few subscriptions, pull for users with many subscriptions. Store articles in a document store (like Elasticsearch) for fast retrieval with complex queries. Pre-compute feeds for active users using a caching layer (Redis). Use consistent hashing for sharding user data. Implement circuit breakers for publisher API calls."
+          }
+        ],
+        "commonMistakes": [
+          {
+            "mistake": "Choosing SQL for article storage without considering query patterns",
+            "why": "Article search requires full-text search, flexible schemas for different article formats, and horizontal scaling - all weaknesses of traditional SQL",
+            "correction": "Use a document store like Elasticsearch for articles with SQL for user data and subscriptions where ACID properties matter"
+          },
+          {
+            "mistake": "Using only pull model for feed generation",
+            "why": "Pull model (fan-out on read) causes high latency for users with many subscriptions as it requires aggregating from many sources in real-time",
+            "correction": "Use hybrid approach: pre-compute feeds for active users (push), use pull for inactive users or users with too many subscriptions"
+          },
+          {
+            "mistake": "Not addressing duplicate detection across publishers",
+            "why": "Same news story will be reported by multiple publishers, leading to redundant feed entries and poor user experience",
+            "correction": "Implement content fingerprinting (SimHash, MinHash) to detect and cluster similar articles"
+          },
+          {
+            "mistake": "Single point of failure in content fetching",
+            "why": "If the crawler goes down, no new content gets ingested, making feeds stale",
+            "correction": "Design distributed crawler with multiple workers, health checks, and automatic failover"
+          },
+          {
+            "mistake": "Not sizing cache appropriately",
+            "why": "Under-sized cache leads to cache misses and database overload; over-sized cache wastes resources",
+            "correction": "Calculate based on active user count, feed size, and access patterns. Example: 1M active users × 10KB feed × 20% hot users = 2TB cache"
+          },
+          {
+            "mistake": "Ignoring CAP theorem tradeoffs",
+            "why": "In distributed systems, you must choose between consistency and availability during network partitions",
+            "correction": "Explicitly choose AP for feed serving (stale data is acceptable) and CP for subscription management (consistency required)"
+          }
+        ],
+        "evaluationCriteria": [
+          {
+            "criteria": "System Architecture",
+            "weight": "30%",
+            "description": "Clean separation of concerns, appropriate component design, scalable architecture patterns"
+          },
+          {
+            "criteria": "Scalability & Performance",
+            "weight": "25%",
+            "description": "Handles scale requirements, appropriate caching, efficient data access patterns"
+          },
+          {
+            "criteria": "Fault Tolerance & Reliability",
+            "weight": "20%",
+            "description": "Graceful degradation, redundancy, circuit breakers, health monitoring"
+          },
+          {
+            "criteria": "Data Modeling & Storage",
+            "weight": "15%",
+            "description": "Appropriate database choices with justification, efficient schemas, indexing strategies"
+          },
+          {
+            "criteria": "Trade-off Analysis",
+            "weight": "10%",
+            "description": "Clear articulation of design decisions, CAP theorem awareness, cost considerations"
+          }
+        ],
+        "relatedProblems": [
+          "Design Twitter/X Feed",
+          "Design Facebook News Feed",
+          "Design Instagram Feed",
+          "Design YouTube Recommendations",
+          "Design a Web Crawler",
+          "Design a Notification System"
+        ],
+        "interviewTips": [
+          "Start with clarifying questions: What's the read vs write ratio? What's the expected latency SLA? How fresh should the content be?",
+          "Draw the high-level architecture first before diving into details - this shows structured thinking",
+          "Explicitly state your assumptions and validate them with the interviewer",
+          "When discussing database choices, always justify with specific reasons related to the use case",
+          "Address the CAP theorem proactively - show you understand distributed systems tradeoffs",
+          "Discuss monitoring and observability - this shows production-readiness thinking",
+          "Be prepared to do back-of-envelope calculations for storage, bandwidth, and cache sizing",
+          "Consider the user experience - discuss cold-start problem for new users",
+          "Show iterative design thinking - start simple, then add complexity as needed",
+          "Discuss how you would test and deploy the system - this shows operational maturity"
+        ]
+      },
+      "generatedAt": "2026-01-13T11:17:22.419Z"
+    },
+    {
+      "id": "delivery_cost_tracking",
+      "originalData": {
+        "name": "Delivery Cost Tracking System",
+        "category": "LLD/OOP Design",
+        "sources": [
+          {
+            "id": "007_rippling_senior_software_engineer_reje",
+            "roundName": "Algorithmic Programming Round"
+          },
+          {
+            "id": "009_senior_software_engineer_rippling_reje",
+            "roundName": "DSA - Delivery Cost Tracking System"
+          },
+          {
+            "id": "013_rippling_sde_2_phone_screening_intervie",
+            "roundName": "Phone Screening"
+          },
+          {
+            "id": "024_rippling_sde_2_offer_india",
+            "roundName": "Technical Screening (Coding + System Design Flavor)"
+          },
+          {
+            "id": "029_sse_rippling_bengaluru_reject",
+            "roundName": "Technical Screening Round"
+          },
+          {
+            "id": "033_what_to_expect_in_rippling_hackerrank_co",
+            "roundName": "Technical Screening Round - Hackerrank Codepair"
+          },
+          {
+            "id": "044_rippling_bengaluru_55_yoe_reject",
+            "roundName": "Phone Screening"
+          },
+          {
+            "id": "051_rippling_sse_rejected",
+            "roundName": "DSA Round"
+          },
+          {
+            "id": "022_rippling_senior_software_engineer",
+            "roundName": "Coding Round 2"
+          }
+        ],
+        "timesAsked": 9
+      },
+      "generatedProblem": {
+        "title": "Delivery Cost Tracking System",
+        "difficulty": "medium",
+        "category": "LLD/OOP Design",
+        "estimatedTime": "45-60 minutes",
+        "tags": [
+          "Object-Oriented Design",
+          "System Design",
+          "Precision Handling",
+          "Time Intervals",
+          "Optimization"
+        ],
+        "problemStatement": {
+          "description": "You are building a delivery cost tracking system for a food delivery company. The system manages delivery drivers who have different hourly rates and tracks the deliveries they make throughout the day. Each delivery has a start time and end time (represented as Unix epoch timestamps in seconds), and the cost of a delivery is calculated based on the driver's hourly rate and the duration of the delivery.\n\nYour task is to design and implement a DeliveryCostTracker class that can efficiently add drivers, record their deliveries, and compute the total cost of all deliveries. The system must handle monetary calculations with precision to avoid floating-point errors that could lead to incorrect billing.\n\nThe company processes thousands of deliveries per day and frequently queries the total cost for reporting purposes. Therefore, the getTotalCost() method must be optimized and should not recalculate costs on every call. All cost calculations must be precise to 1 second (i.e., partial seconds in delivery times should be accounted for in cost calculations).",
+          "requirements": [
+            "Implement addDriver(driverId, hourlyRate) - Register a new driver with their unique ID and hourly rate",
+            "Implement addDelivery(driverId, startTime, endTime) - Record a delivery for an existing driver with epoch timestamps",
+            "Implement getTotalCost() - Return the total cost of all deliveries across all drivers",
+            "Cost calculation: cost = (endTime - startTime) / 3600.0 * hourlyRate",
+            "getTotalCost() must run in O(1) time complexity",
+            "All monetary values must be handled with proper precision (use BigDecimal or equivalent)"
+          ],
+          "constraints": [
+            "1 <= driverId <= 10^6",
+            "0.01 <= hourlyRate <= 1000.00 (dollars per hour)",
+            "0 <= startTime < endTime <= 10^10 (Unix epoch in seconds)",
+            "endTime - startTime <= 86400 (max 24-hour delivery)",
+            "Total number of drivers <= 10^5",
+            "Total number of deliveries <= 10^6",
+            "Precision: costs must be accurate to the nearest cent (2 decimal places)"
+          ],
+          "notes": [
+            "Time is represented as Unix epoch timestamps in seconds",
+            "Drivers must be added before deliveries can be recorded for them",
+            "A driver can have multiple deliveries, including overlapping ones",
+            "Use BigDecimal or equivalent for currency calculations to avoid floating-point precision errors",
+            "The system should handle concurrent access in production scenarios"
+          ]
+        },
+        "methodSignatures": [
+          {
+            "name": "addDriver",
+            "description": "Registers a new driver in the system with their hourly rate",
+            "parameters": [
+              {
+                "name": "driverId",
+                "type": "int",
+                "description": "Unique identifier for the driver"
+              },
+              {
+                "name": "hourlyRate",
+                "type": "BigDecimal",
+                "description": "The driver's hourly rate in dollars"
+              }
+            ],
+            "returnType": "void",
+            "returnDescription": "No return value. Throws exception if driver already exists."
+          },
+          {
+            "name": "addDelivery",
+            "description": "Records a delivery for an existing driver",
+            "parameters": [
+              {
+                "name": "driverId",
+                "type": "int",
+                "description": "The ID of the driver making the delivery"
+              },
+              {
+                "name": "startTime",
+                "type": "long",
+                "description": "Delivery start time as Unix epoch in seconds"
+              },
+              {
+                "name": "endTime",
+                "type": "long",
+                "description": "Delivery end time as Unix epoch in seconds"
+              }
+            ],
+            "returnType": "void",
+            "returnDescription": "No return value. Throws exception if driver doesn't exist or times are invalid."
+          },
+          {
+            "name": "getTotalCost",
+            "description": "Returns the total cost of all deliveries across all drivers",
+            "parameters": [],
+            "returnType": "BigDecimal",
+            "returnDescription": "Total cost rounded to 2 decimal places"
+          }
+        ],
+        "examples": [
+          {
+            "title": "Example 1: Basic Usage",
+            "input": "Initialize system and add drivers with deliveries",
+            "operations": [
+              {
+                "call": "addDriver(1, 15.00)",
+                "result": "null",
+                "explanation": "Adds driver 1 with $15.00/hour rate"
+              },
+              {
+                "call": "addDriver(2, 20.00)",
+                "result": "null",
+                "explanation": "Adds driver 2 with $20.00/hour rate"
+              },
+              {
+                "call": "addDelivery(1, 0, 3600)",
+                "result": "null",
+                "explanation": "Driver 1 delivers for exactly 1 hour (3600 seconds)"
+              },
+              {
+                "call": "addDelivery(2, 1000, 2800)",
+                "result": "null",
+                "explanation": "Driver 2 delivers for 1800 seconds (0.5 hours)"
+              },
+              {
+                "call": "getTotalCost()",
+                "result": "25.00",
+                "explanation": "Driver 1: 1 hour * $15 = $15. Driver 2: 0.5 hours * $20 = $10. Total = $25.00"
+              }
+            ],
+            "output": "25.00",
+            "explanation": "Total cost is sum of all delivery costs: $15.00 + $10.00 = $25.00"
+          },
+          {
+            "title": "Example 2: Precision Test",
+            "input": "Test with non-round delivery durations",
+            "operations": [
+              {
+                "call": "addDriver(1, 36.00)",
+                "result": "null",
+                "explanation": "Adds driver with $36.00/hour rate ($0.01 per second)"
+              },
+              {
+                "call": "addDelivery(1, 0, 1)",
+                "result": "null",
+                "explanation": "1 second delivery"
+              },
+              {
+                "call": "getTotalCost()",
+                "result": "0.01",
+                "explanation": "1 second at $36/hour = $0.01"
+              }
+            ],
+            "output": "0.01",
+            "explanation": "1 second / 3600 seconds per hour * $36.00 = $0.01"
+          },
+          {
+            "title": "Example 3: Multiple Deliveries Same Driver",
+            "input": "Single driver with multiple deliveries",
+            "operations": [
+              {
+                "call": "addDriver(1, 18.00)",
+                "result": "null",
+                "explanation": "Adds driver 1 with $18.00/hour rate"
+              },
+              {
+                "call": "addDelivery(1, 0, 1800)",
+                "result": "null",
+                "explanation": "30-minute delivery: $9.00"
+              },
+              {
+                "call": "addDelivery(1, 2000, 3800)",
+                "result": "null",
+                "explanation": "30-minute delivery: $9.00"
+              },
+              {
+                "call": "addDelivery(1, 4000, 7600)",
+                "result": "null",
+                "explanation": "1-hour delivery: $18.00"
+              },
+              {
+                "call": "getTotalCost()",
+                "result": "36.00",
+                "explanation": "Total: $9 + $9 + $18 = $36.00"
+              }
+            ],
+            "output": "36.00",
+            "explanation": "Sum of three deliveries for the same driver"
+          }
+        ],
+        "testCases": [
+          {
+            "name": "Test Case 1: Single Driver Single Delivery",
+            "input": "addDriver(1, 10.00), addDelivery(1, 0, 7200), getTotalCost()",
+            "expectedOutput": "20.00",
+            "explanation": "2 hours at $10/hour = $20.00"
+          },
+          {
+            "name": "Test Case 2: Multiple Drivers",
+            "input": "addDriver(1, 12.00), addDriver(2, 24.00), addDelivery(1, 0, 3600), addDelivery(2, 0, 1800), getTotalCost()",
+            "expectedOutput": "24.00",
+            "explanation": "Driver 1: 1hr * $12 = $12. Driver 2: 0.5hr * $24 = $12. Total = $24.00"
+          },
+          {
+            "name": "Test Case 3: Precision Edge Case",
+            "input": "addDriver(1, 100.00), addDelivery(1, 0, 36), getTotalCost()",
+            "expectedOutput": "1.00",
+            "explanation": "36 seconds at $100/hour = 36/3600 * 100 = $1.00 exactly"
+          },
+          {
+            "name": "Test Case 4: Very Short Delivery",
+            "input": "addDriver(1, 3600.00), addDelivery(1, 1000000000, 1000000001), getTotalCost()",
+            "expectedOutput": "1.00",
+            "explanation": "1 second delivery at $3600/hour = $1.00"
+          },
+          {
+            "name": "Test Case 5: No Deliveries",
+            "input": "addDriver(1, 50.00), addDriver(2, 75.00), getTotalCost()",
+            "expectedOutput": "0.00",
+            "explanation": "No deliveries recorded, total cost is $0.00"
+          },
+          {
+            "name": "Test Case 6: Floating Point Precision",
+            "input": "addDriver(1, 10.00), addDelivery(1, 0, 60), addDelivery(1, 100, 160), addDelivery(1, 200, 260), getTotalCost()",
+            "expectedOutput": "0.50",
+            "explanation": "3 deliveries of 60 seconds each = 180 seconds total. 180/3600 * $10 = $0.50"
+          }
+        ],
+        "followUpProblems": [
+          {
+            "part": 2,
+            "title": "Payment Tracking",
+            "difficulty": "medium",
+            "description": "Extend the system to track payments. The company settles payments periodically by paying for all deliveries that ended before a certain time. You need to track which deliveries have been paid for and which are still pending payment.",
+            "newRequirements": [
+              "Implement payUpToTime(upToTime) - Mark all deliveries with endTime <= upToTime as paid and return the amount paid",
+              "Implement getCostToBePaid() - Return the total cost of unpaid deliveries",
+              "payUpToTime should run in better than O(n) time where n is total deliveries",
+              "Multiple calls to payUpToTime should be cumulative (time always increases)"
+            ],
+            "hints": [
+              "Consider maintaining deliveries in a sorted data structure by end time",
+              "A TreeMap or priority queue can help achieve better than O(n) lookups",
+              "Pre-compute partial sums to enable efficient range queries"
+            ],
+            "testCases": [
+              {
+                "name": "Payment Test 1: Basic Payment",
+                "input": "addDriver(1, 36.00), addDelivery(1, 0, 3600), addDelivery(1, 3600, 7200), payUpToTime(5000), getCostToBePaid()",
+                "expectedOutput": "payUpToTime returns 36.00, getCostToBePaid returns 36.00",
+                "explanation": "First delivery (ends at 3600) is paid. Second delivery (ends at 7200) is unpaid."
+              },
+              {
+                "name": "Payment Test 2: Pay All",
+                "input": "addDriver(1, 18.00), addDelivery(1, 0, 3600), addDelivery(1, 3600, 7200), payUpToTime(10000), getCostToBePaid()",
+                "expectedOutput": "payUpToTime returns 36.00, getCostToBePaid returns 0.00",
+                "explanation": "Both deliveries end before 10000, so all are paid."
+              },
+              {
+                "name": "Payment Test 3: Incremental Payments",
+                "input": "addDriver(1, 10.00), addDelivery(1, 0, 3600), addDelivery(1, 5000, 8600), payUpToTime(4000), payUpToTime(9000), getCostToBePaid()",
+                "expectedOutput": "First payUpToTime returns 10.00, second returns 10.00, getCostToBePaid returns 0.00",
+                "explanation": "Payments are cumulative. First pays delivery 1, second pays delivery 2."
+              }
+            ]
+          },
+          {
+            "part": 3,
+            "title": "Analytics - Maximum Active Drivers",
+            "difficulty": "hard",
+            "description": "Add analytics capability to find the maximum number of drivers that were actively delivering at any single moment within the last 24 hours. This helps the company understand peak demand periods.",
+            "newRequirements": [
+              "Implement getMaxActiveDriversInLast24Hours(currentTime) - Return the maximum number of unique drivers that had overlapping deliveries at any point in time within [currentTime - 86400, currentTime]",
+              "Only count each driver once even if they had multiple simultaneous deliveries",
+              "Consider using line sweep algorithm or interval tree for efficiency"
+            ],
+            "hints": [
+              "Use a line sweep algorithm: create events for delivery starts (+1) and ends (-1)",
+              "Track unique drivers at each point, not just delivery count",
+              "Sort events by time and process them to find maximum overlap",
+              "Consider edge cases where deliveries start and end at the same second"
+            ],
+            "testCases": [
+              {
+                "name": "Analytics Test 1: Simple Overlap",
+                "input": "addDriver(1, 10.00), addDriver(2, 10.00), addDelivery(1, 1000, 5000), addDelivery(2, 3000, 7000), getMaxActiveDriversInLast24Hours(10000)",
+                "expectedOutput": "2",
+                "explanation": "Between time 3000-5000, both drivers are active simultaneously."
+              },
+              {
+                "name": "Analytics Test 2: No Overlap",
+                "input": "addDriver(1, 10.00), addDriver(2, 10.00), addDelivery(1, 1000, 2000), addDelivery(2, 3000, 4000), getMaxActiveDriversInLast24Hours(10000)",
+                "expectedOutput": "1",
+                "explanation": "Drivers never deliver at the same time."
+              },
+              {
+                "name": "Analytics Test 3: Same Driver Multiple Deliveries",
+                "input": "addDriver(1, 10.00), addDelivery(1, 1000, 3000), addDelivery(1, 2000, 4000), getMaxActiveDriversInLast24Hours(10000)",
+                "expectedOutput": "1",
+                "explanation": "Same driver with overlapping deliveries counts as 1."
+              }
+            ]
+          },
+          {
+            "part": 4,
+            "title": "Dynamic Rate Updates",
+            "difficulty": "medium",
+            "description": "Allow updating a driver's hourly rate. New rates should only apply to deliveries added after the rate change, not retroactively to existing deliveries.",
+            "newRequirements": [
+              "Implement updateDriverRate(driverId, newHourlyRate) - Update the hourly rate for future deliveries",
+              "Existing deliveries should retain their original calculated cost",
+              "getTotalCost() must still run in O(1) time"
+            ],
+            "hints": [
+              "Store the rate with each delivery at insertion time, not just with the driver",
+              "The running total approach still works since past deliveries are unaffected"
+            ],
+            "testCases": [
+              {
+                "name": "Rate Update Test 1",
+                "input": "addDriver(1, 10.00), addDelivery(1, 0, 3600), updateDriverRate(1, 20.00), addDelivery(1, 5000, 8600), getTotalCost()",
+                "expectedOutput": "30.00",
+                "explanation": "First delivery at $10/hr = $10. Second delivery at $20/hr = $20. Total = $30."
+              }
+            ]
+          }
+        ],
+        "hints": [
+          {
+            "level": 1,
+            "hint": "Think about what calculations can be done at insertion time vs query time. If getTotalCost() needs to be O(1), what must happen when addDelivery is called?"
+          },
+          {
+            "level": 2,
+            "hint": "Maintain a running total that gets updated each time addDelivery is called. Use BigDecimal for all monetary calculations to avoid floating-point precision issues."
+          },
+          {
+            "level": 3,
+            "hint": "Use a HashMap<Integer, BigDecimal> to store driver rates. Keep a BigDecimal totalCost field. In addDelivery: calculate cost = BigDecimal.valueOf(endTime - startTime).divide(BigDecimal.valueOf(3600), scale, RoundingMode.HALF_UP).multiply(hourlyRate), then add to totalCost."
+          }
+        ],
+        "commonMistakes": [
+          {
+            "mistake": "Using double or float for monetary calculations",
+            "why": "Floating-point arithmetic can introduce precision errors. For example, 0.1 + 0.2 != 0.3 in floating point. This leads to incorrect billing amounts.",
+            "correction": "Use BigDecimal for all currency calculations. Set appropriate scale (2 decimal places) and rounding mode (HALF_UP for standard financial rounding)."
+          },
+          {
+            "mistake": "Recalculating total cost on every getTotalCost() call",
+            "why": "This results in O(n) time complexity where n is the number of deliveries. With millions of deliveries and frequent queries, this becomes a performance bottleneck.",
+            "correction": "Maintain a running total that is updated in O(1) time during addDelivery. getTotalCost() simply returns this pre-computed value."
+          },
+          {
+            "mistake": "Integer division when calculating hours from seconds",
+            "why": "Using (endTime - startTime) / 3600 with integer division truncates partial hours, leading to underbilling for short deliveries.",
+            "correction": "Convert to BigDecimal before division, or ensure floating-point division is used before converting to BigDecimal."
+          },
+          {
+            "mistake": "Not validating inputs (driver exists, valid time range)",
+            "why": "Adding deliveries for non-existent drivers or with invalid time ranges can corrupt data and cause unexpected behavior.",
+            "correction": "Validate that driver exists before adding delivery. Check that startTime < endTime. Throw appropriate exceptions for invalid inputs."
+          },
+          {
+            "mistake": "Not handling thread safety in production code",
+            "why": "Multiple threads adding deliveries and querying costs simultaneously can lead to race conditions and incorrect totals.",
+            "correction": "Use synchronized methods, ReentrantLock, or concurrent data structures. Consider using AtomicReference<BigDecimal> for the running total."
+          },
+          {
+            "mistake": "Storing hourly rate only with driver, not with each delivery",
+            "why": "If rate updates are added later, you won't be able to correctly handle the requirement that existing deliveries keep their original rates.",
+            "correction": "Store the applicable hourly rate with each delivery record, or ensure the rate lookup happens at delivery insertion time."
+          }
+        ],
+        "evaluationCriteria": [
+          {
+            "criteria": "Code Quality & OOP Design",
+            "weight": "25%",
+            "description": "Clean, readable code with proper class structure, encapsulation, and separation of concerns. Appropriate use of data types and naming conventions."
+          },
+          {
+            "criteria": "Correctness & Precision Handling",
+            "weight": "30%",
+            "description": "All test cases pass with correct results. Proper use of BigDecimal for currency. Correct cost calculation formula implementation."
+          },
+          {
+            "criteria": "Optimization",
+            "weight": "25%",
+            "description": "getTotalCost() runs in O(1) time. Efficient data structures used. Precomputation strategy properly implemented."
+          },
+          {
+            "criteria": "Edge Cases & Error Handling",
+            "weight": "15%",
+            "description": "Handles invalid inputs gracefully. Considers edge cases like zero-length deliveries, very short deliveries, large timestamps."
+          },
+          {
+            "criteria": "Communication & Problem Solving",
+            "weight": "5%",
+            "description": "Asks clarifying questions. Explains approach clearly. Discusses trade-offs and alternatives."
+          }
+        ],
+        "relatedProblems": [
+          "LeetCode 253 - Meeting Rooms II",
+          "LeetCode 56 - Merge Intervals",
+          "LeetCode 57 - Insert Interval",
+          "LeetCode 729 - My Calendar I",
+          "LeetCode 731 - My Calendar II"
+        ],
+        "interviewTips": [
+          "Start by clarifying requirements: Ask about precision requirements, expected scale, and edge cases before coding.",
+          "Discuss data type choices upfront: Explain why you're using BigDecimal instead of double for currency. This shows awareness of real-world financial computing challenges.",
+          "Explain your optimization strategy: Before implementing, describe how you'll achieve O(1) getTotalCost() by maintaining a running total.",
+          "Consider extensibility: Design your classes to easily accommodate the follow-up questions (payment tracking, analytics).",
+          "Write clean, production-quality code: Use meaningful variable names, add input validation, and consider thread safety.",
+          "Test your code verbally: Walk through your examples and verify the calculations match expected outputs.",
+          "Discuss time and space complexity: Analyze your solution's complexity and discuss potential trade-offs.",
+          "Be prepared for follow-ups: The interviewer will likely ask about payment tracking or analytics. Have a mental model ready for how you'd extend your design."
+        ]
+      },
+      "generatedAt": "2026-01-13T11:18:39.312Z"
+    },
+    {
+      "id": "employee_hierarchy",
+      "originalData": {
+        "name": "Employee Hierarchy / Org Tree",
+        "category": "DSA/Trees",
+        "sources": [
+          {
+            "id": "116_healthifyme_rippling_sde_2_june_2022",
+            "roundName": "Coding Round"
+          },
+          {
+            "id": "105_rippling_l6_may22",
+            "roundName": "Problem Solving"
+          },
+          {
+            "id": "117_rippling_sr_sde_may_2022",
+            "roundName": "Coding Round"
+          },
+          {
+            "id": "109_rippling_bangalore_march_2022_reject",
+            "roundName": "Screening (LLD)"
+          },
+          {
+            "id": "098_interview_experience_with_rippling_l6",
+            "roundName": "Problem Solving"
+          },
+          {
+            "id": "018_rippling_interview_experience_sde_i_on",
+            "roundName": "Onsite Interview 3 (DSA) - Additional Round"
+          }
+        ],
+        "timesAsked": 6
+      },
+      "generatedProblem": {
+        "title": "Employee Hierarchy / Org Tree",
+        "difficulty": "medium",
+        "category": "DSA/Trees",
+        "estimatedTime": "45-60 minutes",
+        "tags": [
+          "N-ary Tree",
+          "Tree Traversal",
+          "DFS",
+          "BFS",
+          "Data Structure Design",
+          "Hash Map"
+        ],
+        "problemStatement": {
+          "description": "You are building an organizational management system for a company. The company has a hierarchical structure where each employee can have at most one manager and may have multiple subordinates (direct reports). The CEO is at the top of the hierarchy and has no manager.\n\nYou need to design a data structure to represent this organizational hierarchy and implement various operations to query and analyze the organization. Each employee has a unique ID, a name, a performance rating (1-10), a department, and a salary. The system should efficiently support operations like finding direct reports, calculating team performance metrics, and analyzing the organizational structure.\n\nA 'team' is defined as an employee and ALL their subordinates (both direct and indirect). For example, if employee A manages B and C, and B manages D, then A's team consists of A, B, C, and D.",
+          "requirements": [
+            "Design an Employee data structure that captures employee ID, name, manager relationship, subordinates, performance rating, department, and salary",
+            "Implement a method to add an employee to the organization",
+            "Implement a method to get the count of direct reportees for a given employee (not total subordinates)",
+            "Implement a method to find the employee whose team has the highest average performance rating",
+            "Implement a method to find the height of the org tree (level of farthest employee from CEO)"
+          ],
+          "constraints": [
+            "1 <= number of employees <= 10^5",
+            "1 <= employeeId <= 10^6",
+            "1 <= performanceRating <= 10",
+            "1 <= salary <= 10^7",
+            "Employee IDs are unique",
+            "The CEO (root) has managerId = null or -1",
+            "The organizational structure forms a valid tree (no cycles)"
+          ],
+          "notes": [
+            "When calculating team average, include the employee themselves in the calculation",
+            "A leaf employee (no subordinates) has a team of size 1 (just themselves)",
+            "Handle floating-point division carefully for average calculations",
+            "In case of tie for highest average, return any valid employee",
+            "The tree is N-ary (each node can have multiple children)"
+          ]
+        },
+        "methodSignatures": [
+          {
+            "name": "OrgTree",
+            "description": "Constructor to initialize the organizational tree",
+            "parameters": [],
+            "returnType": "void",
+            "returnDescription": "Initializes an empty org tree"
+          },
+          {
+            "name": "addEmployee",
+            "description": "Adds an employee to the organization",
+            "parameters": [
+              {
+                "name": "employeeId",
+                "type": "int",
+                "description": "Unique identifier for the employee"
+              },
+              {
+                "name": "name",
+                "type": "string",
+                "description": "Name of the employee"
+              },
+              {
+                "name": "managerId",
+                "type": "int",
+                "description": "ID of the manager (-1 for CEO)"
+              },
+              {
+                "name": "performanceRating",
+                "type": "int",
+                "description": "Performance rating (1-10)"
+              },
+              {
+                "name": "department",
+                "type": "string",
+                "description": "Department name"
+              },
+              {
+                "name": "salary",
+                "type": "int",
+                "description": "Employee salary"
+              }
+            ],
+            "returnType": "void",
+            "returnDescription": "Nothing returned"
+          },
+          {
+            "name": "getDirectReportCount",
+            "description": "Returns the count of direct reportees for a given employee",
+            "parameters": [
+              {
+                "name": "employeeId",
+                "type": "int",
+                "description": "ID of the employee/manager"
+              }
+            ],
+            "returnType": "int",
+            "returnDescription": "Number of direct reports (not including indirect subordinates)"
+          },
+          {
+            "name": "getBestPerformingTeamLead",
+            "description": "Returns the employee ID whose team has the highest average performance rating",
+            "parameters": [],
+            "returnType": "int",
+            "returnDescription": "Employee ID with highest team average rating"
+          },
+          {
+            "name": "getOrgHeight",
+            "description": "Returns the height of the organization tree (CEO is at level 0)",
+            "parameters": [],
+            "returnType": "int",
+            "returnDescription": "Maximum depth/level in the organization"
+          }
+        ],
+        "examples": [
+          {
+            "title": "Example 1: Basic Organizational Structure",
+            "input": "Build org tree and perform queries",
+            "operations": [
+              {
+                "call": "OrgTree()",
+                "result": "null",
+                "explanation": "Initialize empty org tree"
+              },
+              {
+                "call": "addEmployee(1, 'Alice', -1, 5, 'Executive', 500000)",
+                "result": "null",
+                "explanation": "Add CEO Alice with rating 5"
+              },
+              {
+                "call": "addEmployee(2, 'Bob', 1, 3, 'Engineering', 200000)",
+                "result": "null",
+                "explanation": "Add Bob reporting to Alice with rating 3"
+              },
+              {
+                "call": "addEmployee(3, 'Carol', 1, 2, 'Sales', 180000)",
+                "result": "null",
+                "explanation": "Add Carol reporting to Alice with rating 2"
+              },
+              {
+                "call": "addEmployee(4, 'David', 3, 4, 'Sales', 100000)",
+                "result": "null",
+                "explanation": "Add David reporting to Carol with rating 4"
+              },
+              {
+                "call": "addEmployee(5, 'Eve', 3, 10, 'Sales', 120000)",
+                "result": "null",
+                "explanation": "Add Eve reporting to Carol with rating 10"
+              },
+              {
+                "call": "getDirectReportCount(1)",
+                "result": "2",
+                "explanation": "Alice has 2 direct reports: Bob and Carol"
+              },
+              {
+                "call": "getDirectReportCount(3)",
+                "result": "2",
+                "explanation": "Carol has 2 direct reports: David and Eve"
+              },
+              {
+                "call": "getDirectReportCount(5)",
+                "result": "0",
+                "explanation": "Eve has no direct reports"
+              },
+              {
+                "call": "getBestPerformingTeamLead()",
+                "result": "5",
+                "explanation": "Eve's team (just herself) has avg 10.0, highest among all"
+              },
+              {
+                "call": "getOrgHeight()",
+                "result": "2",
+                "explanation": "Tree has 3 levels (0,1,2), height is 2"
+              }
+            ],
+            "output": "See individual operation results",
+            "explanation": "Tree structure: Alice(CEO) -> [Bob, Carol], Carol -> [David, Eve]. Team averages: Alice=(5+3+2+4+10)/5=4.8, Bob=3.0, Carol=(2+4+10)/3=5.33, David=4.0, Eve=10.0"
+          }
+        ],
+        "testCases": [
+          {
+            "name": "Test Case 1: Single Employee (CEO only)",
+            "input": "addEmployee(1, 'CEO', -1, 8, 'Executive', 1000000)",
+            "expectedOutput": "getDirectReportCount(1)=0, getBestPerformingTeamLead()=1, getOrgHeight()=0",
+            "explanation": "Single node tree - CEO is the best team lead with team of 1"
+          },
+          {
+            "name": "Test Case 2: Linear Hierarchy",
+            "input": "CEO(1,rating=5) -> Manager(2,rating=7) -> Engineer(3,rating=9) -> Intern(4,rating=6)",
+            "expectedOutput": "getDirectReportCount(1)=1, getDirectReportCount(2)=1, getBestPerformingTeamLead()=3, getOrgHeight()=3",
+            "explanation": "Linear chain. Team averages: CEO=(5+7+9+6)/4=6.75, Manager=(7+9+6)/3=7.33, Engineer=(9+6)/2=7.5, Intern=6.0"
+          },
+          {
+            "name": "Test Case 3: Wide Tree",
+            "input": "CEO(1,rating=5) with 5 direct reports all with rating 3 and no subordinates",
+            "expectedOutput": "getDirectReportCount(1)=5, getBestPerformingTeamLead()=1, getOrgHeight()=1",
+            "explanation": "CEO's team avg=(5+3+3+3+3+3)/6=3.33, each subordinate has avg=3. CEO wins."
+          },
+          {
+            "name": "Test Case 4: Tie Breaking for Best Team",
+            "input": "CEO(1,rating=10) -> [Emp2(rating=10), Emp3(rating=10)]",
+            "expectedOutput": "getBestPerformingTeamLead() returns any of 1, 2, or 3 (all have avg 10)",
+            "explanation": "All employees have team average of 10.0, any valid answer accepted"
+          },
+          {
+            "name": "Test Case 5: Non-existent Employee",
+            "input": "getDirectReportCount(999) on empty or populated tree without employee 999",
+            "expectedOutput": "getDirectReportCount(999)=-1 or throws exception",
+            "explanation": "Should handle queries for non-existent employees gracefully"
+          }
+        ],
+        "followUpProblems": [
+          {
+            "part": 2,
+            "title": "Find Common Manager",
+            "difficulty": "medium",
+            "description": "Given two employee IDs, find their lowest common manager (LCA in the org tree). This is the lowest-level manager who is an ancestor of both employees.",
+            "newRequirements": [
+              "Implement findCommonManager(employeeId1, employeeId2) that returns the ID of the lowest common manager"
+            ],
+            "hints": [
+              "Consider storing parent pointers for each employee",
+              "You can trace paths from both employees to the root and find the intersection",
+              "Alternatively, use the LCA algorithm for trees"
+            ],
+            "testCases": [
+              {
+                "name": "Common Manager Test 1",
+                "input": "Tree: CEO(1) -> [A(2), B(3)], A -> [C(4), D(5)]. findCommonManager(4, 5)",
+                "expectedOutput": "2",
+                "explanation": "C and D both report to A, so A is their common manager"
+              },
+              {
+                "name": "Common Manager Test 2",
+                "input": "Tree: CEO(1) -> [A(2), B(3)], A -> [C(4)], B -> [D(5)]. findCommonManager(4, 5)",
+                "expectedOutput": "1",
+                "explanation": "C is under A, D is under B, their common manager is CEO"
+              }
+            ]
+          },
+          {
+            "part": 3,
+            "title": "Group by Department with Aggregations",
+            "difficulty": "medium",
+            "description": "Implement flexible grouping and aggregation capabilities. Support grouping employees by any attribute (department, manager, etc.) and computing aggregate functions (sum, min, max, mean) on numeric fields.",
+            "newRequirements": [
+              "Implement groupByDepartment(aggregateField, aggregateFunction) where aggregateField can be 'salary' or 'rating', and aggregateFunction can be 'sum', 'min', 'max', or 'mean'"
+            ],
+            "hints": [
+              "Use a HashMap to group employees by the grouping key",
+              "Use function pointers or strategy pattern for different aggregation functions",
+              "Consider making the solution generic with functional interfaces"
+            ],
+            "testCases": [
+              {
+                "name": "Group by Department - Sum Salary",
+                "input": "Employees in Engineering with salaries 100K, 150K, 200K. groupByDepartment('salary', 'sum')",
+                "expectedOutput": "{'Engineering': 450000, ...}",
+                "explanation": "Sum of all salaries in Engineering department"
+              },
+              {
+                "name": "Group by Department - Mean Rating",
+                "input": "Employees in Sales with ratings 5, 7, 9. groupByDepartment('rating', 'mean')",
+                "expectedOutput": "{'Sales': 7.0, ...}",
+                "explanation": "Average rating in Sales department"
+              }
+            ]
+          },
+          {
+            "part": 4,
+            "title": "Reorganize Org Tree with Height Constraint",
+            "difficulty": "hard",
+            "description": "The CEO wants the organizational tree to not exceed a height h for organizational efficiency. Any employee beyond level h should report directly to the CEO, while their original subordinates remain unchanged. Implement this optimally such that the number of new direct reports to the CEO is minimized.",
+            "newRequirements": [
+              "Implement reorganizeOrg(maxHeight) that restructures the tree to have maximum height of maxHeight while minimizing CEO's new direct reports"
+            ],
+            "hints": [
+              "First, identify all nodes at depth > maxHeight",
+              "Use greedy approach: elevate nodes that are highest (closest to root) first",
+              "When you elevate a node to CEO, its subtree structure remains intact",
+              "Consider which nodes at level h+1 would cause the least disruption"
+            ],
+            "testCases": [
+              {
+                "name": "Reorganize Test 1",
+                "input": "Tree depth 5, maxHeight=2",
+                "expectedOutput": "Tree restructured with height <= 2, minimum new CEO reports",
+                "explanation": "Nodes at level 3+ need restructuring, greedy selection minimizes CEO reports"
+              },
+              {
+                "name": "Reorganize Test 2",
+                "input": "Tree depth 3, maxHeight=3",
+                "expectedOutput": "No changes needed",
+                "explanation": "Tree already satisfies height constraint"
+              }
+            ]
+          }
+        ],
+        "hints": [
+          {
+            "level": 1,
+            "hint": "Use a HashMap to store employees by ID for O(1) lookups. Consider what data structure best represents the parent-child relationships."
+          },
+          {
+            "level": 2,
+            "hint": "For direct report count, simply return the size of the subordinates list. For team average, use DFS/BFS to traverse all descendants and calculate the sum and count."
+          },
+          {
+            "level": 3,
+            "hint": "For getBestPerformingTeamLead, perform DFS from each node computing (sum of ratings, count) for the subtree. Use post-order traversal - first compute children's values, then combine with current node. Track the maximum average seen and corresponding employee ID."
+          }
+        ],
+        "commonMistakes": [
+          {
+            "mistake": "Counting all subordinates instead of only direct reports",
+            "why": "The problem specifically asks for direct reportees, not the total count of all descendants",
+            "correction": "Return the size of the immediate children/subordinates list, not a recursive count"
+          },
+          {
+            "mistake": "Forgetting to include the employee themselves in team average calculation",
+            "why": "A team is defined as the employee AND all their subordinates",
+            "correction": "When calculating team average, include the root employee's rating in both sum and count"
+          },
+          {
+            "mistake": "Integer division when calculating averages",
+            "why": "Using integer division loses precision and gives wrong results",
+            "correction": "Cast to double/float before division or use floating-point arithmetic"
+          },
+          {
+            "mistake": "Not handling leaf nodes correctly for best team calculation",
+            "why": "Leaf nodes have a team size of 1, and their average equals their own rating",
+            "correction": "Handle the base case where an employee has no subordinates"
+          },
+          {
+            "mistake": "Using BFS for tree height and counting edges instead of nodes",
+            "why": "Height can be defined as max depth (levels - 1) or number of levels depending on convention",
+            "correction": "Clarify whether height is 0-indexed (CEO at level 0) and be consistent"
+          }
+        ],
+        "evaluationCriteria": [
+          {
+            "criteria": "Data Structure Design",
+            "weight": "20%",
+            "description": "Clean Employee class design with appropriate fields and relationships"
+          },
+          {
+            "criteria": "Correctness",
+            "weight": "35%",
+            "description": "All test cases pass, including edge cases like single node and leaf nodes"
+          },
+          {
+            "criteria": "Algorithm Efficiency",
+            "weight": "25%",
+            "description": "O(1) for direct report count, O(n) for tree traversals, efficient use of HashMap"
+          },
+          {
+            "criteria": "Code Quality",
+            "weight": "15%",
+            "description": "Clean, readable code with meaningful variable names and proper separation of concerns"
+          },
+          {
+            "criteria": "Edge Case Handling",
+            "weight": "5%",
+            "description": "Handles empty tree, non-existent employees, CEO with no reports gracefully"
+          }
+        ],
+        "relatedProblems": [
+          "LC 690 - Employee Importance",
+          "LC 559 - Maximum Depth of N-ary Tree",
+          "LC 589 - N-ary Tree Preorder Traversal",
+          "LC 590 - N-ary Tree Postorder Traversal",
+          "LC 1490 - Clone N-ary Tree",
+          "LC 236 - Lowest Common Ancestor of a Binary Tree"
+        ],
+        "interviewTips": [
+          "Start by clarifying the definition of 'team' - does it include indirect subordinates? (Yes)",
+          "Ask about edge cases: What if employee doesn't exist? What about ties in average?",
+          "Design the Employee data structure first before jumping into algorithms",
+          "For tree traversals, clearly state whether you're using DFS or BFS and why",
+          "When calculating averages, explicitly mention you're using floating-point division",
+          "Consider using a post-order traversal for computing team metrics efficiently",
+          "Mention the time complexity of each operation as you implement it",
+          "For follow-ups like LCA, mention you could optimize with binary lifting if needed"
+        ]
+      },
+      "generatedAt": "2026-01-13T11:19:48.368Z"
+    },
+    {
+      "id": "credit_card_rules_engine",
+      "originalData": {
+        "name": "Expense Rules Engine",
+        "category": "LLD/OOP Design",
+        "sources": [
+          {
+            "id": "001_rippling_algorithm_coding_test_phonesc",
+            "roundName": "LLD / OOP Design Round"
+          },
+          {
+            "id": "022_rippling_senior_software_engineer",
+            "roundName": "Coding Round 1"
+          },
+          {
+            "id": "028_sse_rippling_reject",
+            "roundName": "Coderpair Round"
+          },
+          {
+            "id": "024_rippling_sde_2_offer_india",
+            "roundName": "Onsite Round 3: Coding + Rules Engine"
+          }
+        ],
+        "timesAsked": 4
+      },
+      "generatedProblem": {
+        "title": "Expense Rules Engine",
+        "difficulty": "medium",
+        "category": "LLD/OOP Design",
+        "estimatedTime": "45-60 minutes",
+        "tags": [
+          "Object-Oriented Design",
+          "Rules Engine",
+          "Strategy Pattern",
+          "Clean Code",
+          "Extensibility"
+        ],
+        "problemStatement": {
+          "description": "You are building a corporate expense management system for a company that issues corporate credit cards to employees. To prevent misuse and ensure compliance with company policies, managers need to define rules that automatically validate expenses and flag violations.\n\nDesign and implement a Rules Engine that can evaluate a list of expenses against a configurable set of business rules. The engine should be flexible enough to handle different types of rules: some rules operate on individual expenses (e.g., 'no single expense over $250'), while others aggregate data across related expenses (e.g., 'total expenses per trip cannot exceed $2000').\n\nEach expense is represented as a dictionary/hashmap with string keys and values. The rules engine should return detailed information about which expenses violated which rules, enabling the system to provide actionable feedback to employees and managers.\n\nYour solution should demonstrate strong OOP principles, clean code practices, and be designed for extensibility - the company plans to add new rule types in the future and eventually allow managers to create custom rules via an API.",
+          "requirements": [
+            "Design a flexible Rule abstraction that can represent different types of validation rules",
+            "Implement the core method: evaluateRules(rules: List<Rule>, expenses: List<Expense>) -> List<Violation>",
+            "Support Ban Rules: block expenses based on expense_type, vendor_type, or vendor_name",
+            "Support Maximum Amount Rules: limit individual expense amounts (globally or by vendor_type)",
+            "Support Trip Aggregate Rules: limit total expenses per trip_id",
+            "Support Expense Type Aggregate Rules: limit total expenses of a specific type per trip",
+            "Return a structured result that identifies which expenses violated which rules"
+          ],
+          "constraints": [
+            "1 <= number of expenses <= 10,000",
+            "1 <= number of rules <= 100",
+            "Expense amounts are provided as strings and may have decimal values (e.g., '49.99')",
+            "All monetary values are in USD",
+            "expense_id values are unique across all expenses",
+            "trip_id may be null/missing for expenses not associated with a trip",
+            "String comparisons for vendor_type, expense_type, vendor_name are case-insensitive"
+          ],
+          "notes": [
+            "Parse string amounts to numeric values for comparisons - handle potential parsing errors gracefully",
+            "Trip-level rules require grouping expenses by trip_id before evaluation",
+            "An expense may violate multiple rules - all violations should be reported",
+            "Rules should be evaluated independently - one rule's result should not affect another's evaluation",
+            "Design your return type carefully before implementing - this is a key design decision"
+          ]
+        },
+        "methodSignatures": [
+          {
+            "name": "evaluateRules",
+            "description": "Evaluates all expenses against all rules and returns a list of violations",
+            "parameters": [
+              {
+                "name": "rules",
+                "type": "List<Rule>",
+                "description": "List of business rules to evaluate against"
+              },
+              {
+                "name": "expenses",
+                "type": "List<Map<String, String>>",
+                "description": "List of expense objects as key-value dictionaries"
+              }
+            ],
+            "returnType": "List<Violation>",
+            "returnDescription": "List of Violation objects, each containing the expense_id, rule that was violated, and violation details"
+          },
+          {
+            "name": "addRule",
+            "description": "Adds a new rule to the rules engine",
+            "parameters": [
+              {
+                "name": "rule",
+                "type": "Rule",
+                "description": "The rule object to add"
+              }
+            ],
+            "returnType": "void",
+            "returnDescription": "Nothing returned"
+          },
+          {
+            "name": "createBanRule",
+            "description": "Factory method to create a ban rule",
+            "parameters": [
+              {
+                "name": "fieldName",
+                "type": "String",
+                "description": "The expense field to check (expense_type, vendor_type, or vendor_name)"
+              },
+              {
+                "name": "bannedValue",
+                "type": "String",
+                "description": "The value that is not allowed"
+              }
+            ],
+            "returnType": "Rule",
+            "returnDescription": "A configured ban rule"
+          },
+          {
+            "name": "createMaxAmountRule",
+            "description": "Factory method to create a maximum amount rule",
+            "parameters": [
+              {
+                "name": "maxAmount",
+                "type": "double",
+                "description": "Maximum allowed amount"
+              },
+              {
+                "name": "filterField",
+                "type": "String",
+                "description": "Optional field to filter on (e.g., vendor_type)"
+              },
+              {
+                "name": "filterValue",
+                "type": "String",
+                "description": "Optional value the filter field must match"
+              }
+            ],
+            "returnType": "Rule",
+            "returnDescription": "A configured maximum amount rule"
+          },
+          {
+            "name": "createTripTotalRule",
+            "description": "Factory method to create a trip total limit rule",
+            "parameters": [
+              {
+                "name": "maxTripTotal",
+                "type": "double",
+                "description": "Maximum allowed total per trip"
+              }
+            ],
+            "returnType": "Rule",
+            "returnDescription": "A configured trip total rule"
+          },
+          {
+            "name": "createExpenseTypeAggregateRule",
+            "description": "Factory method to create an expense type aggregate rule per trip",
+            "parameters": [
+              {
+                "name": "expenseType",
+                "type": "String",
+                "description": "The expense type to aggregate"
+              },
+              {
+                "name": "maxTotal",
+                "type": "double",
+                "description": "Maximum allowed total for this expense type per trip"
+              }
+            ],
+            "returnType": "Rule",
+            "returnDescription": "A configured expense type aggregate rule"
+          }
+        ],
+        "examples": [
+          {
+            "title": "Example 1: Basic Rule Evaluation",
+            "input": "expenses = [\n  {\"expense_id\": \"001\", \"trip_id\": \"T1\", \"amount_usd\": \"49.99\", \"expense_type\": \"meal\", \"vendor_type\": \"restaurant\", \"vendor_name\": \"Outback Steakhouse\"},\n  {\"expense_id\": \"002\", \"trip_id\": \"T1\", \"amount_usd\": \"85.00\", \"expense_type\": \"meal\", \"vendor_type\": \"restaurant\", \"vendor_name\": \"Morton's\"},\n  {\"expense_id\": \"003\", \"trip_id\": \"T1\", \"amount_usd\": \"300.00\", \"expense_type\": \"airfare\", \"vendor_type\": \"airline\", \"vendor_name\": \"Delta\"}\n]\n\nrules = [\n  BanRule(field=\"expense_type\", value=\"airfare\"),\n  MaxAmountRule(maxAmount=75.0, filterField=\"vendor_type\", filterValue=\"restaurant\")\n]",
+            "operations": [
+              {
+                "call": "evaluateRules(rules, expenses)",
+                "result": "[Violation(expense_id='002', rule='MaxAmountRule', message='Restaurant expense $85.00 exceeds limit of $75.00'), Violation(expense_id='003', rule='BanRule', message='Expense type airfare is not allowed')]",
+                "explanation": "Expense 001 passes all rules. Expense 002 violates restaurant max amount. Expense 003 violates airfare ban."
+              }
+            ],
+            "output": "2 violations detected",
+            "explanation": "The engine evaluates each expense against each rule and collects all violations"
+          },
+          {
+            "title": "Example 2: Trip Aggregate Rules",
+            "input": "expenses = [\n  {\"expense_id\": \"001\", \"trip_id\": \"T1\", \"amount_usd\": \"1500.00\", \"expense_type\": \"hotel\", \"vendor_type\": \"hotel\", \"vendor_name\": \"Marriott\"},\n  {\"expense_id\": \"002\", \"trip_id\": \"T1\", \"amount_usd\": \"150.00\", \"expense_type\": \"meal\", \"vendor_type\": \"restaurant\", \"vendor_name\": \"Ruth's Chris\"},\n  {\"expense_id\": \"003\", \"trip_id\": \"T1\", \"amount_usd\": \"100.00\", \"expense_type\": \"meal\", \"vendor_type\": \"restaurant\", \"vendor_name\": \"Nobu\"},\n  {\"expense_id\": \"004\", \"trip_id\": \"T1\", \"amount_usd\": \"400.00\", \"expense_type\": \"transport\", \"vendor_type\": \"car_rental\", \"vendor_name\": \"Hertz\"}\n]\n\nrules = [\n  TripTotalRule(maxTotal=2000.0),\n  ExpenseTypeAggregateRule(expenseType=\"meal\", maxTotal=200.0)\n]",
+            "operations": [
+              {
+                "call": "evaluateRules(rules, expenses)",
+                "result": "[Violation(expense_ids=['001','002','003','004'], rule='TripTotalRule', message='Trip T1 total $2150.00 exceeds limit of $2000.00'), Violation(expense_ids=['002','003'], rule='ExpenseTypeAggregateRule', message='Trip T1 meal expenses $250.00 exceed limit of $200.00')]",
+                "explanation": "Trip T1 total is $2150, exceeding the $2000 limit. Meal expenses for T1 total $250, exceeding the $200 limit."
+              }
+            ],
+            "output": "2 aggregate violations detected for trip T1",
+            "explanation": "Aggregate rules evaluate the sum of expenses grouped by trip_id"
+          }
+        ],
+        "testCases": [
+          {
+            "name": "Test Case 1: No Violations",
+            "input": "expenses = [{\"expense_id\": \"001\", \"trip_id\": \"T1\", \"amount_usd\": \"50.00\", \"expense_type\": \"meal\", \"vendor_type\": \"restaurant\", \"vendor_name\": \"Chipotle\"}], rules = [MaxAmountRule(maxAmount=75.0, filterField=\"vendor_type\", filterValue=\"restaurant\")]",
+            "expectedOutput": "[]",
+            "explanation": "$50 restaurant expense is under $75 limit, no violations"
+          },
+          {
+            "name": "Test Case 2: Multiple Rules Same Expense",
+            "input": "expenses = [{\"expense_id\": \"001\", \"trip_id\": \"T1\", \"amount_usd\": \"500.00\", \"expense_type\": \"entertainment\", \"vendor_type\": \"venue\", \"vendor_name\": \"Madison Square Garden\"}], rules = [BanRule(field=\"expense_type\", value=\"entertainment\"), MaxAmountRule(maxAmount=250.0)]",
+            "expectedOutput": "[Violation(expense_id='001', rule='BanRule'), Violation(expense_id='001', rule='MaxAmountRule')]",
+            "explanation": "Same expense violates both the entertainment ban and the $250 max amount rule"
+          },
+          {
+            "name": "Test Case 3: Case Insensitive Matching",
+            "input": "expenses = [{\"expense_id\": \"001\", \"trip_id\": \"T1\", \"amount_usd\": \"100.00\", \"expense_type\": \"AIRFARE\", \"vendor_type\": \"airline\", \"vendor_name\": \"United\"}], rules = [BanRule(field=\"expense_type\", value=\"airfare\")]",
+            "expectedOutput": "[Violation(expense_id='001', rule='BanRule', message='Expense type airfare is not allowed')]",
+            "explanation": "Rule matching should be case-insensitive - AIRFARE matches airfare"
+          },
+          {
+            "name": "Test Case 4: Multiple Trips",
+            "input": "expenses = [{\"expense_id\": \"001\", \"trip_id\": \"T1\", \"amount_usd\": \"1800.00\", \"expense_type\": \"hotel\", \"vendor_type\": \"hotel\", \"vendor_name\": \"Hilton\"}, {\"expense_id\": \"002\", \"trip_id\": \"T2\", \"amount_usd\": \"1800.00\", \"expense_type\": \"hotel\", \"vendor_type\": \"hotel\", \"vendor_name\": \"Marriott\"}, {\"expense_id\": \"003\", \"trip_id\": \"T1\", \"amount_usd\": \"300.00\", \"expense_type\": \"meal\", \"vendor_type\": \"restaurant\", \"vendor_name\": \"Nobu\"}], rules = [TripTotalRule(maxTotal=2000.0)]",
+            "expectedOutput": "[Violation(trip_id='T1', rule='TripTotalRule', message='Trip T1 total $2100.00 exceeds limit of $2000.00')]",
+            "explanation": "Only trip T1 exceeds $2000 (total $2100). Trip T2 is at $1800, under limit."
+          },
+          {
+            "name": "Test Case 5: Empty Expenses List",
+            "input": "expenses = [], rules = [MaxAmountRule(maxAmount=250.0), BanRule(field=\"expense_type\", value=\"entertainment\")]",
+            "expectedOutput": "[]",
+            "explanation": "No expenses to evaluate means no violations"
+          },
+          {
+            "name": "Test Case 6: Decimal Amount Parsing",
+            "input": "expenses = [{\"expense_id\": \"001\", \"trip_id\": \"T1\", \"amount_usd\": \"75.01\", \"expense_type\": \"meal\", \"vendor_type\": \"restaurant\", \"vendor_name\": \"Olive Garden\"}], rules = [MaxAmountRule(maxAmount=75.0, filterField=\"vendor_type\", filterValue=\"restaurant\")]",
+            "expectedOutput": "[Violation(expense_id='001', rule='MaxAmountRule', message='Restaurant expense $75.01 exceeds limit of $75.00')]",
+            "explanation": "$75.01 exceeds $75.00 limit - precise decimal comparison required"
+          }
+        ],
+        "followUpProblems": [
+          {
+            "part": 2,
+            "title": "Add More Rule Types",
+            "difficulty": "medium",
+            "description": "Extend the rules engine to support additional rule types: (1) Vendor Name Ban - ban specific vendor names, (2) Time-based Rules - expenses only valid during business hours or weekdays, (3) Combined Rules - AND/OR logic between multiple conditions, (4) Percentage-based Rules - a single expense cannot exceed X% of trip total.",
+            "newRequirements": [
+              "Implement VendorBanRule to block specific vendor names",
+              "Implement TimeBasedRule to validate expenses against time constraints",
+              "Implement CompositeRule that can combine multiple rules with AND/OR logic",
+              "Implement PercentageRule to limit single expense as percentage of trip total"
+            ],
+            "hints": [
+              "Use the Composite pattern for combining rules with AND/OR logic",
+              "Time-based rules may require adding a timestamp field to expenses",
+              "Percentage rules need two passes - first to calculate trip total, then to evaluate each expense"
+            ],
+            "testCases": [
+              {
+                "name": "Composite AND Rule",
+                "input": "expenses = [{\"expense_id\": \"001\", \"amount_usd\": \"100.00\", \"expense_type\": \"meal\", \"vendor_type\": \"restaurant\"}], rules = [CompositeRule(AND, [MaxAmountRule(50.0), VendorTypeRule(\"restaurant\")])]",
+                "expectedOutput": "[Violation(expense_id='001', rule='CompositeRule')]",
+                "explanation": "Expense is at restaurant AND exceeds $50, violates composite AND rule"
+              },
+              {
+                "name": "Percentage Rule",
+                "input": "expenses = [{\"expense_id\": \"001\", \"trip_id\": \"T1\", \"amount_usd\": \"600.00\", \"expense_type\": \"hotel\"}, {\"expense_id\": \"002\", \"trip_id\": \"T1\", \"amount_usd\": \"400.00\", \"expense_type\": \"meal\"}], rules = [PercentageRule(maxPercent=50.0)]",
+                "expectedOutput": "[Violation(expense_id='001', rule='PercentageRule', message='Expense is 60% of trip total, exceeds 50% limit')]",
+                "explanation": "$600 is 60% of $1000 trip total, exceeding 50% limit"
+              }
+            ]
+          },
+          {
+            "part": 3,
+            "title": "Rule Creation via API",
+            "difficulty": "hard",
+            "description": "Design an API that allows managers to create and manage rules dynamically. Rules should be serializable/deserializable to JSON format. Include validation for rule configurations and support for rule versioning.",
+            "newRequirements": [
+              "Design RESTful API endpoints for CRUD operations on rules",
+              "Implement Rule serialization/deserialization to/from JSON",
+              "Add rule validation to ensure configurations are valid before saving",
+              "Support rule versioning - maintain history of rule changes",
+              "Add rule priority/ordering capability"
+            ],
+            "hints": [
+              "Use the Factory pattern to create rules from JSON configurations",
+              "Consider using a rule DSL (Domain Specific Language) for complex rule definitions",
+              "Store rule metadata (created_by, created_at, version) alongside rule configuration"
+            ],
+            "testCases": [
+              {
+                "name": "Create Rule via API",
+                "input": "POST /rules {\"type\": \"BAN\", \"field\": \"expense_type\", \"value\": \"entertainment\"}",
+                "expectedOutput": "{\"rule_id\": \"R001\", \"type\": \"BAN\", \"status\": \"active\", \"version\": 1}",
+                "explanation": "API creates a new ban rule and returns the created rule with ID and metadata"
+              },
+              {
+                "name": "Update Rule Version",
+                "input": "PUT /rules/R001 {\"type\": \"BAN\", \"field\": \"expense_type\", \"value\": \"gambling\"}",
+                "expectedOutput": "{\"rule_id\": \"R001\", \"type\": \"BAN\", \"value\": \"gambling\", \"version\": 2}",
+                "explanation": "Updating a rule creates a new version while preserving history"
+              }
+            ]
+          }
+        ],
+        "hints": [
+          {
+            "level": 1,
+            "hint": "Start by identifying the different categories of rules: individual expense rules vs aggregate rules. This distinction will guide your class hierarchy."
+          },
+          {
+            "level": 2,
+            "hint": "Consider using the Strategy pattern where each rule type is a separate strategy implementing a common Rule interface. The interface should have an evaluate() method that takes expense(s) and returns violation(s)."
+          },
+          {
+            "level": 3,
+            "hint": "For aggregate rules (trip total, expense type per trip), you'll need to first group expenses by trip_id, then pass the grouped expenses to aggregate rules. Individual rules can evaluate each expense independently. Consider having two types of rule interfaces: IndividualRule and AggregateRule."
+          }
+        ],
+        "commonMistakes": [
+          {
+            "mistake": "Not parsing string amounts to numeric values before comparison",
+            "why": "Expenses have amount_usd as strings (e.g., '49.99'). String comparison would give incorrect results ('9' > '75' is true as strings).",
+            "correction": "Parse amount_usd to double/float at the start of evaluation. Handle NumberFormatException gracefully."
+          },
+          {
+            "mistake": "Treating all rules as individual expense rules",
+            "why": "Trip total and expense type aggregate rules need to sum across multiple expenses before determining violations.",
+            "correction": "Distinguish between individual rules (evaluate per expense) and aggregate rules (evaluate across grouped expenses). Group expenses by trip_id for aggregate rule evaluation."
+          },
+          {
+            "mistake": "Not handling case sensitivity in string comparisons",
+            "why": "Expense data might have 'Restaurant', 'RESTAURANT', or 'restaurant' - these should all match.",
+            "correction": "Normalize strings to lowercase (or uppercase) before comparison for fields like vendor_type, expense_type."
+          },
+          {
+            "mistake": "Designing a non-extensible solution with switch/if-else chains for rule types",
+            "why": "Adding new rule types would require modifying existing code, violating Open/Closed Principle.",
+            "correction": "Use polymorphism - create a Rule interface/abstract class with an evaluate method. Each rule type is a separate class implementing this interface."
+          },
+          {
+            "mistake": "Poor return type design - returning just boolean or simple strings",
+            "why": "The system needs to know which specific expenses violated which specific rules with details for reporting.",
+            "correction": "Design a Violation class containing expense_id(s), rule reference, and detailed message explaining the violation."
+          },
+          {
+            "mistake": "Not handling null/missing trip_id for individual expenses",
+            "why": "Some expenses may not be associated with a trip. Trip aggregate rules should only apply to expenses with trip_ids.",
+            "correction": "Check for null/empty trip_id. Aggregate rules should skip expenses without trip_ids or create a default grouping."
+          }
+        ],
+        "evaluationCriteria": [
+          {
+            "criteria": "Object-Oriented Design",
+            "weight": "30%",
+            "description": "Proper use of abstraction, inheritance, and polymorphism. Clean separation of concerns. Extensible design using patterns like Strategy or Factory."
+          },
+          {
+            "criteria": "Correctness",
+            "weight": "30%",
+            "description": "All rule types work correctly. Individual and aggregate rules handled properly. String parsing and comparisons accurate."
+          },
+          {
+            "criteria": "Code Quality",
+            "weight": "20%",
+            "description": "Clean, readable code. Good naming conventions. Proper error handling. Well-organized class structure."
+          },
+          {
+            "criteria": "Extensibility",
+            "weight": "15%",
+            "description": "Easy to add new rule types without modifying existing code. Design accommodates future API-based rule creation."
+          },
+          {
+            "criteria": "Edge Cases",
+            "weight": "5%",
+            "description": "Handles empty lists, null values, case sensitivity, decimal precision correctly."
+          }
+        ],
+        "relatedProblems": [
+          "Design a Rate Limiter",
+          "Expression Evaluation",
+          "Design Notification System",
+          "Validation Framework Design"
+        ],
+        "interviewTips": [
+          "Start by clarifying the return type with your interviewer - this is a key design decision that affects your entire implementation",
+          "Discuss the distinction between individual and aggregate rules early - this insight demonstrates problem understanding",
+          "Draw out your class hierarchy before coding - showing Rule interface, IndividualRule, AggregateRule, and concrete implementations",
+          "Mention design patterns by name (Strategy, Factory) when explaining your approach - this shows design maturity",
+          "Verbalize your thinking about extensibility - explicitly state how new rule types would be added",
+          "Start with a simple rule type (like BanRule), get it working end-to-end, then add complexity",
+          "Consider using enums for rule types and expense fields to avoid magic strings",
+          "Don't forget to parse string amounts to numbers - mention this explicitly to show attention to detail"
+        ]
+      },
+      "generatedAt": "2026-01-13T11:21:10.973Z"
+    }
+  ]
+}

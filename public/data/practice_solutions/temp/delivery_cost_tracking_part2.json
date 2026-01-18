@@ -1,0 +1,931 @@
+{
+  "problem_title": "Delivery Cost Tracking System - Part 2: Payment Settlement Tracking",
+  "part_number": 2,
+  "builds_on": "Part 1",
+  "difficulty": "medium",
+  "problem_understanding": {
+    "what_changes": "Part 1 only tracked total costs - we could get away with just a running total and never storing individual deliveries. Part 2 requires us to **track individual deliveries** because we need to know which ones have been paid. We must now store deliveries sorted by end time to efficiently find all deliveries completed before a payment cutoff. This fundamentally changes our data model from 'aggregate only' to 'track individual items with timestamps'.",
+    "new_requirements": [
+      "payUpToTime(upToTime) - Mark deliveries ending at or before upToTime as paid, must be O(log n) amortized",
+      "getCostToBePaid() - Return unpaid delivery costs in O(1)",
+      "Store deliveries sorted by end time for efficient time-based queries",
+      "Maintain separation between totalCost and paidCost"
+    ],
+    "new_constraints": [
+      "payUpToTime must be better than O(n) per call - O(log n) or better amortized",
+      "getCostToBePaid must be O(1) - cannot scan all deliveries",
+      "A delivery is only paid when it's completely finished (endTime <= upToTime)"
+    ],
+    "key_insight": "Use a **min-heap sorted by endTime** to efficiently extract all deliveries ending before the payment cutoff. Track paidCost separately so getCostToBePaid = totalCost - paidCost is O(1). Each delivery is pushed once and popped once, giving O(log n) amortized per delivery across all operations."
+  },
+  "requirements_coverage": {
+    "checklist": [
+      {
+        "requirement": "payUpToTime must be O(log n) amortized",
+        "how_met": "Min-heap allows popping minimum elements in O(log n). We only pop each delivery once total, so amortized O(log n) per delivery",
+        "gotchas": [
+          "Don't scan the entire structure each call",
+          "Remember 'amortized' means averaged over all operations"
+        ]
+      },
+      {
+        "requirement": "getCostToBePaid must be O(1)",
+        "how_met": "Maintain running totals: totalCost (all deliveries) and paidCost (settled). Return totalCost - paidCost",
+        "gotchas": [
+          "Must update paidCost when paying, not recalculate by scanning"
+        ]
+      },
+      {
+        "requirement": "Track which deliveries are paid vs unpaid",
+        "how_met": "Deliveries in the heap are unpaid. Once popped and added to paidCost, they're considered paid",
+        "gotchas": [
+          "Deliveries are only paid when completely finished (endTime <= upToTime, not startTime)"
+        ]
+      }
+    ],
+    "complexity_targets": [
+      {
+        "operation": "payUpToTime",
+        "target": "O(log n) amortized",
+        "achieved": "O(k log n) where k = deliveries being paid this call",
+        "why": "Each heappop is O(log n). Across all calls, each delivery is popped at most once, so amortized O(log n) per delivery"
+      },
+      {
+        "operation": "getCostToBePaid",
+        "target": "O(1)",
+        "achieved": "O(1)",
+        "why": "Simple subtraction of two maintained totals"
+      },
+      {
+        "operation": "addDelivery",
+        "target": "O(log n)",
+        "achieved": "O(log n)",
+        "why": "heappush is O(log n), previously was O(1) in Part 1"
+      }
+    ],
+    "non_goals": [
+      "We don't support 'unpaying' a delivery",
+      "We don't query which specific deliveries are paid/unpaid",
+      "We don't handle partial payments (a delivery is either fully paid or not)"
+    ]
+  },
+  "assumptions": [
+    "payUpToTime is called with monotonically increasing times (or at least, calling with earlier times after later times has no effect)",
+    "Once a delivery is paid, it cannot be unpaid",
+    "Multiple deliveries can have the same endTime - all should be paid when that time is reached",
+    "Deliveries are only added AFTER their driver exists (from Part 1 assumption)"
+  ],
+  "tradeoffs": [
+    {
+      "decision": "Min-Heap vs TreeMap",
+      "chosen": "Min-Heap (heapq in Python, PriorityQueue in Java)",
+      "why": "Simpler to implement, efficient O(log n) extraction of minimums, natural fit for 'process everything before time X'",
+      "alternative": "TreeMap<EndTime, List<Cost>>",
+      "when_to_switch": "If we need to query arbitrary time ranges or cancel specific deliveries, TreeMap's range queries would be better"
+    },
+    {
+      "decision": "Store full delivery info vs just cost",
+      "chosen": "Store (endTime, cost) tuples",
+      "why": "Minimal storage for Part 2 requirements",
+      "alternative": "Store full Delivery objects with all metadata",
+      "when_to_switch": "If Part 3 requires accessing delivery details like driverId"
+    },
+    {
+      "decision": "Remove paid deliveries vs mark them",
+      "chosen": "Remove from heap",
+      "why": "Keeps heap size proportional to unpaid deliveries, faster future operations",
+      "alternative": "Keep all deliveries, mark paid ones",
+      "when_to_switch": "If we need to 'unpay' or audit payment history"
+    }
+  ],
+  "extensibility_notes": {
+    "what_to_keep_stable": [
+      "Public method signatures from Part 1 (addDriver, addDelivery, getTotalCost)",
+      "Decimal precision for all currency calculations",
+      "O(1) getTotalCost and getCostToBePaid"
+    ],
+    "what_to_change": [
+      "Add unpaid_deliveries heap to store (endTime, cost) pairs",
+      "Add paid_cost running total",
+      "addDelivery now pushes to heap (changes from O(1) to O(log n))"
+    ],
+    "interfaces_and_boundaries": "Keep payment tracking separate from delivery recording. If Part 3 adds per-driver queries, we might need additional indexes but the core heap structure can remain.",
+    "invariants": [
+      "totalCost = sum of all delivery costs ever recorded",
+      "paidCost = sum of costs popped from the heap",
+      "paidCost <= totalCost always",
+      "Heap contains only unpaid deliveries",
+      "costToBePaid = totalCost - paidCost"
+    ]
+  },
+  "visual_explanation": {
+    "before_after": "```\n═══════════════════════════════════════════════════════════════════\n                    BEFORE payUpToTime(3600)\n═══════════════════════════════════════════════════════════════════\n\n  Timeline:     0 ──────── 3600 ──────── 5400 ──────── 7200\n                |    D1     |      D2    |      D3      |\n                └──────────┘└───────────┘└─────────────┘\n                   $20          $30           $25\n\n  Min-Heap (sorted by endTime):          Running Totals:\n  ┌─────────────────────────┐            ┌─────────────────┐\n  │  (3600, $20) ← top      │            │ totalCost = $75 │\n  │  (5400, $30)            │            │ paidCost  = $0  │\n  │  (7200, $25)            │            │ toPay     = $75 │\n  └─────────────────────────┘            └─────────────────┘\n\n═══════════════════════════════════════════════════════════════════\n                    AFTER payUpToTime(3600)\n═══════════════════════════════════════════════════════════════════\n\n  Payment line: ──────────┬────────────────────────────────────────\n                          3600\n                          ↓\n  D1: [========]  ✓ PAID (endTime 3600 <= 3600)\n  D2:      [========]  ✗ UNPAID (endTime 5400 > 3600)\n  D3:             [========]  ✗ UNPAID (endTime 7200 > 3600)\n\n  Min-Heap (after popping):              Running Totals:\n  ┌─────────────────────────┐            ┌─────────────────┐\n  │  (5400, $30) ← new top  │            │ totalCost = $75 │\n  │  (7200, $25)            │            │ paidCost  = $20 │\n  │                         │            │ toPay     = $55 │\n  └─────────────────────────┘            └─────────────────┘\n```",
+    "algorithm_flow": "```\npayUpToTime(upToTime) Algorithm Flow:\n═══════════════════════════════════════\n\n┌─────────────────────────────────────────────────────────────┐\n│ START: payUpToTime(3600)                                     │\n└──────────────────────┬──────────────────────────────────────┘\n                       ▼\n┌─────────────────────────────────────────────────────────────┐\n│ WHILE heap not empty AND heap[0].endTime <= upToTime        │\n│                                                              │\n│   Iteration 1:                                               │\n│   ┌─────────────────────────────────────────────────────┐   │\n│   │ Peek: (3600, $20)                                    │   │\n│   │ Check: 3600 <= 3600? ✓ YES                          │   │\n│   │ Action: Pop (3600, $20)                              │   │\n│   │ Update: paidCost += $20 → paidCost = $20            │   │\n│   └─────────────────────────────────────────────────────┘   │\n│                                                              │\n│   Iteration 2:                                               │\n│   ┌─────────────────────────────────────────────────────┐   │\n│   │ Peek: (5400, $30)                                    │   │\n│   │ Check: 5400 <= 3600? ✗ NO                           │   │\n│   │ Action: STOP LOOP                                    │   │\n│   └─────────────────────────────────────────────────────┘   │\n└──────────────────────┬──────────────────────────────────────┘\n                       ▼\n┌─────────────────────────────────────────────────────────────┐\n│ END: paidCost = $20, heap = [(5400,$30), (7200,$25)]        │\n└─────────────────────────────────────────────────────────────┘\n\ngetCostToBePaid() - O(1):\n═════════════════════════\n┌─────────────────────────────────────────────────────────────┐\n│ return totalCost - paidCost                                  │\n│        = $75 - $20                                           │\n│        = $55                                                 │\n└─────────────────────────────────────────────────────────────┘\n```"
+  },
+  "approaches": [
+    {
+      "name": "Naive Extension - List Scan",
+      "description": "Store all deliveries in a list. On payUpToTime, scan the entire list to find deliveries with endTime <= upToTime and mark them as paid.",
+      "time_complexity": "O(n) per payUpToTime call",
+      "space_complexity": "O(n)",
+      "why_not_optimal": "Violates the O(log n) requirement. With thousands of deliveries and frequent payment settlements, this becomes a bottleneck. Each call scans ALL deliveries even if most are already paid."
+    },
+    {
+      "name": "Sorted List with Binary Search",
+      "description": "Keep deliveries sorted by endTime. Use binary search to find the cutoff point, then pay all deliveries up to that index.",
+      "time_complexity": "O(log n) to find cutoff + O(k) to mark k deliveries as paid",
+      "space_complexity": "O(n)",
+      "why_not_optimal": "Better than naive, but still O(k) to process paid deliveries. Also, inserting into a sorted list is O(n). Works but heap is simpler."
+    },
+    {
+      "name": "Optimal Approach - Min-Heap",
+      "description": "Use a min-heap sorted by endTime. Push deliveries as they're added. On payUpToTime, pop all deliveries where endTime <= upToTime, accumulating their costs into paidCost.",
+      "time_complexity": "O(log n) per addDelivery, O(k log n) per payUpToTime where k = items paid, O(1) getCostToBePaid",
+      "space_complexity": "O(n) for the heap",
+      "key_insight": "Each delivery is pushed once (O(log n)) and popped once (O(log n)), so total amortized cost per delivery is O(log n). The heap naturally gives us the earliest-ending deliveries first."
+    }
+  ],
+  "optimal_solution": {
+    "explanation_md": "## Optimal Solution: Min-Heap with Running Totals\n\n### Core Idea\nThe key insight is that we need **two pieces of information** to answer `getCostToBePaid()` in O(1):\n1. **totalCost**: Sum of ALL delivery costs ever recorded\n2. **paidCost**: Sum of costs that have been settled\n\nThen: `costToBePaid = totalCost - paidCost`\n\n### Why a Min-Heap?\nTo efficiently find \"all deliveries ending before time X\", we need deliveries **sorted by endTime**. A min-heap gives us:\n- **O(log n) insertion** when adding deliveries\n- **O(log n) extraction** of the minimum (earliest ending delivery)\n- **Natural stopping point**: Once we peek and see an endTime > upToTime, we're done\n\n### Algorithm for payUpToTime\n```\nwhile heap is not empty AND heap.peek().endTime <= upToTime:\n    delivery = heap.pop()  # O(log n)\n    paidCost += delivery.cost\n```\n\nThis is **O(k log n)** where k = number of deliveries being paid. But across ALL calls to payUpToTime, each delivery is popped at most once, giving **O(log n) amortized** per delivery.\n\n### Why This Beats O(n)\nNaive approach: Scan all n deliveries every time → O(n) per call\nHeap approach: Only process deliveries being paid → O(k log n) per call, O(n log n) total\n\nIf we have 10,000 deliveries and call payUpToTime 100 times, naive does 1,000,000 operations. Heap does ~10,000 × log(10,000) ≈ 130,000 operations.",
+    "data_structures": [
+      {
+        "structure": "Min-Heap (heapq in Python, PriorityQueue in Java)",
+        "purpose": "Store unpaid deliveries sorted by endTime for efficient extraction"
+      },
+      {
+        "structure": "totalCost (Decimal/BigDecimal)",
+        "purpose": "Running sum of all delivery costs ever recorded"
+      },
+      {
+        "structure": "paidCost (Decimal/BigDecimal)",
+        "purpose": "Running sum of costs that have been settled via payUpToTime"
+      },
+      {
+        "structure": "drivers (HashMap)",
+        "purpose": "Map driverId → hourlyRate (from Part 1)"
+      }
+    ],
+    "algorithm_steps": [
+      "Step 1: On addDelivery, calculate cost and add to totalCost. Push (endTime, cost) to min-heap.",
+      "Step 2: On payUpToTime(upToTime), while heap is non-empty and top element's endTime <= upToTime, pop it and add cost to paidCost.",
+      "Step 3: On getCostToBePaid, return totalCost - paidCost (O(1) arithmetic)."
+    ]
+  },
+  "solution_python_lines": [
+    "\"\"\"",
+    "Delivery Cost Tracking System - Part 2: Payment Settlement Tracking",
+    "",
+    "Extends Part 1 with payment tracking using a min-heap for efficient",
+    "time-based queries. Supports O(log n) amortized payment settlement",
+    "and O(1) unpaid cost queries.",
+    "\"\"\"",
+    "",
+    "from decimal import Decimal, ROUND_HALF_UP",
+    "from typing import Dict, List, Tuple",
+    "import heapq",
+    "",
+    "",
+    "class DeliveryCostTracker:",
+    "    \"\"\"",
+    "    Tracks delivery costs and payment settlements for drivers.",
+    "    ",
+    "    Part 2 adds payment tracking with efficient time-based queries.",
+    "    Uses a min-heap sorted by end time for O(log n) amortized operations.",
+    "    ",
+    "    Invariants:",
+    "        - totalCost >= paidCost",
+    "        - costToBePaid = totalCost - paidCost",
+    "        - Heap contains only unpaid deliveries",
+    "    \"\"\"",
+    "    ",
+    "    SECONDS_PER_HOUR = Decimal('3600')",
+    "    ",
+    "    def __init__(self) -> None:",
+    "        \"\"\"Initialize the tracker with empty state.\"\"\"",
+    "        # Driver storage: driverId -> hourlyRate",
+    "        self._drivers: Dict[int, Decimal] = {}",
+    "        ",
+    "        # Cost tracking",
+    "        self._total_cost: Decimal = Decimal('0')",
+    "        self._paid_cost: Decimal = Decimal('0')",
+    "        ",
+    "        # Min-heap of (end_time, cost) for unpaid deliveries",
+    "        # Sorted by end_time for efficient payUpToTime",
+    "        self._unpaid_deliveries: List[Tuple[int, Decimal]] = []",
+    "    ",
+    "    def add_driver(self, driver_id: int, hourly_rate: int) -> None:",
+    "        \"\"\"",
+    "        Register a driver with their hourly rate.",
+    "        ",
+    "        Args:",
+    "            driver_id: Unique identifier for the driver",
+    "            hourly_rate: Pay rate in dollars per hour",
+    "        ",
+    "        Time: O(1)",
+    "        \"\"\"",
+    "        self._drivers[driver_id] = Decimal(str(hourly_rate))",
+    "    ",
+    "    def add_delivery(self, driver_id: int, start_time: int, end_time: int) -> None:",
+    "        \"\"\"",
+    "        Record a completed delivery.",
+    "        ",
+    "        Args:",
+    "            driver_id: ID of the driver who made the delivery",
+    "            start_time: Epoch seconds when delivery started",
+    "            end_time: Epoch seconds when delivery ended",
+    "        ",
+    "        Time: O(log n) due to heap insertion",
+    "        \"\"\"",
+    "        if driver_id not in self._drivers:",
+    "            raise ValueError(f\"Driver {driver_id} not found\")",
+    "        ",
+    "        if end_time < start_time:",
+    "            raise ValueError(\"End time cannot be before start time\")",
+    "        ",
+    "        # Calculate delivery cost",
+    "        rate = self._drivers[driver_id]",
+    "        duration_seconds = Decimal(str(end_time - start_time))",
+    "        duration_hours = duration_seconds / self.SECONDS_PER_HOUR",
+    "        cost = rate * duration_hours",
+    "        ",
+    "        # Update total cost",
+    "        self._total_cost += cost",
+    "        ",
+    "        # Add to unpaid deliveries heap (sorted by end_time)",
+    "        heapq.heappush(self._unpaid_deliveries, (end_time, cost))",
+    "    ",
+    "    def get_total_cost(self) -> Decimal:",
+    "        \"\"\"",
+    "        Get the total cost of all recorded deliveries.",
+    "        ",
+    "        Returns:",
+    "            Total cost as Decimal",
+    "        ",
+    "        Time: O(1)",
+    "        \"\"\"",
+    "        return self._total_cost",
+    "    ",
+    "    def pay_up_to_time(self, up_to_time: int) -> None:",
+    "        \"\"\"",
+    "        Mark all deliveries ending at or before the given time as paid.",
+    "        ",
+    "        A delivery is only paid when completely finished (endTime <= upToTime).",
+    "        ",
+    "        Args:",
+    "            up_to_time: Pay all deliveries ending at or before this time",
+    "        ",
+    "        Time: O(k log n) where k = number of deliveries being paid",
+    "              Amortized O(log n) per delivery across all calls",
+    "        \"\"\"",
+    "        while self._unpaid_deliveries:",
+    "            # Peek at the earliest-ending unpaid delivery",
+    "            end_time, cost = self._unpaid_deliveries[0]",
+    "            ",
+    "            if end_time <= up_to_time:",
+    "                # This delivery is complete, pay it",
+    "                heapq.heappop(self._unpaid_deliveries)",
+    "                self._paid_cost += cost",
+    "            else:",
+    "                # All remaining deliveries end after the cutoff",
+    "                break",
+    "    ",
+    "    def get_cost_to_be_paid(self) -> Decimal:",
+    "        \"\"\"",
+    "        Get the total cost of unpaid deliveries.",
+    "        ",
+    "        Returns:",
+    "            Cost of deliveries not yet settled",
+    "        ",
+    "        Time: O(1)",
+    "        \"\"\"",
+    "        return self._total_cost - self._paid_cost",
+    "    ",
+    "    # === Debug/Utility Methods ===",
+    "    ",
+    "    def get_paid_cost(self) -> Decimal:",
+    "        \"\"\"Get total amount already paid. Useful for debugging.\"\"\"",
+    "        return self._paid_cost",
+    "    ",
+    "    def get_unpaid_count(self) -> int:",
+    "        \"\"\"Get count of unpaid deliveries. Useful for debugging.\"\"\"",
+    "        return len(self._unpaid_deliveries)",
+    "",
+    "",
+    "def main():",
+    "    \"\"\"Demonstrate the DeliveryCostTracker with examples from the problem.\"\"\"",
+    "    ",
+    "    print(\"=\" * 60)",
+    "    print(\"Example 1: Basic Payment Flow\")",
+    "    print(\"=\" * 60)",
+    "    ",
+    "    tracker = DeliveryCostTracker()",
+    "    ",
+    "    # Add driver with $20/hour rate",
+    "    tracker.add_driver(1, 20)",
+    "    print(f\"Added driver 1 with rate $20/hr\")",
+    "    ",
+    "    # Add two deliveries, each 1 hour",
+    "    tracker.add_delivery(1, 0, 3600)      # $20, ends at 3600",
+    "    tracker.add_delivery(1, 3600, 7200)   # $20, ends at 7200",
+    "    print(f\"Added delivery 1: 0-3600 (ends at 3600)\")",
+    "    print(f\"Added delivery 2: 3600-7200 (ends at 7200)\")",
+    "    ",
+    "    print(f\"\\nTotal cost: ${tracker.get_total_cost()}\")",
+    "    print(f\"Cost to be paid: ${tracker.get_cost_to_be_paid()}\")",
+    "    ",
+    "    # Pay deliveries ending at or before 3600",
+    "    tracker.pay_up_to_time(3600)",
+    "    print(f\"\\nAfter payUpToTime(3600):\")",
+    "    print(f\"  Paid cost: ${tracker.get_paid_cost()}\")",
+    "    print(f\"  Cost to be paid: ${tracker.get_cost_to_be_paid()}\")",
+    "    ",
+    "    print(\"\\n\" + \"=\" * 60)",
+    "    print(\"Example 2: Multiple Drivers\")",
+    "    print(\"=\" * 60)",
+    "    ",
+    "    tracker2 = DeliveryCostTracker()",
+    "    ",
+    "    # Add two drivers",
+    "    tracker2.add_driver(1, 10)  # $10/hr",
+    "    tracker2.add_driver(2, 20)  # $20/hr",
+    "    print(f\"Driver 1: $10/hr, Driver 2: $20/hr\")",
+    "    ",
+    "    # Add deliveries",
+    "    tracker2.add_delivery(1, 0, 3600)       # D1: $10, ends 3600",
+    "    tracker2.add_delivery(2, 1800, 5400)    # D2: $20, ends 5400",
+    "    tracker2.add_delivery(1, 7200, 10800)   # D3: $10, ends 10800",
+    "    ",
+    "    print(f\"D1: driver 1, 0-3600, cost $10, ends 3600\")",
+    "    print(f\"D2: driver 2, 1800-5400, cost $20, ends 5400\")",
+    "    print(f\"D3: driver 1, 7200-10800, cost $10, ends 10800\")",
+    "    ",
+    "    print(f\"\\nTotal: ${tracker2.get_total_cost()}\")",
+    "    print(f\"Unpaid: {tracker2.get_unpaid_count()} deliveries\")",
+    "    ",
+    "    # First payment settlement",
+    "    tracker2.pay_up_to_time(5400)",
+    "    print(f\"\\nAfter payUpToTime(5400):\")",
+    "    print(f\"  Paid: ${tracker2.get_paid_cost()} (D1 + D2)\")",
+    "    print(f\"  Remaining: ${tracker2.get_cost_to_be_paid()} (D3)\")",
+    "    ",
+    "    # Second payment settlement",
+    "    tracker2.pay_up_to_time(10800)",
+    "    print(f\"\\nAfter payUpToTime(10800):\")",
+    "    print(f\"  Paid: ${tracker2.get_paid_cost()} (all)\")",
+    "    print(f\"  Remaining: ${tracker2.get_cost_to_be_paid()}\")",
+    "    ",
+    "    print(\"\\n\" + \"=\" * 60)",
+    "    print(\"Edge Case: Multiple Deliveries Same End Time\")",
+    "    print(\"=\" * 60)",
+    "    ",
+    "    tracker3 = DeliveryCostTracker()",
+    "    tracker3.add_driver(1, 36)  # $36/hr = $0.01/second",
+    "    ",
+    "    # Three deliveries all ending at 3600",
+    "    tracker3.add_delivery(1, 0, 3600)     # $36",
+    "    tracker3.add_delivery(1, 1000, 3600)  # $26",
+    "    tracker3.add_delivery(1, 2000, 3600)  # $16",
+    "    ",
+    "    print(f\"Three deliveries all ending at 3600\")",
+    "    print(f\"Total: ${tracker3.get_total_cost()}\")",
+    "    print(f\"Unpaid count: {tracker3.get_unpaid_count()}\")",
+    "    ",
+    "    tracker3.pay_up_to_time(3600)",
+    "    print(f\"\\nAfter payUpToTime(3600):\")",
+    "    print(f\"  All paid: ${tracker3.get_paid_cost()}\")",
+    "    print(f\"  Remaining: ${tracker3.get_cost_to_be_paid()}\")",
+    "    print(f\"  Unpaid count: {tracker3.get_unpaid_count()}\")",
+    "",
+    "",
+    "if __name__ == \"__main__\":",
+    "    main()"
+  ],
+  "solution_java_lines": [
+    "import java.math.BigDecimal;",
+    "import java.math.RoundingMode;",
+    "import java.util.*;",
+    "",
+    "/**",
+    " * Delivery Cost Tracking System - Part 2: Payment Settlement Tracking",
+    " * ",
+    " * Extends Part 1 with payment tracking using a min-heap (PriorityQueue)",
+    " * for efficient time-based queries.",
+    " * ",
+    " * Time Complexity:",
+    " *   - addDriver: O(1)",
+    " *   - addDelivery: O(log n)",
+    " *   - getTotalCost: O(1)",
+    " *   - payUpToTime: O(k log n) where k = deliveries paid, amortized O(log n)",
+    " *   - getCostToBePaid: O(1)",
+    " */",
+    "public class DeliveryCostTracker {",
+    "    ",
+    "    private static final BigDecimal SECONDS_PER_HOUR = new BigDecimal(\"3600\");",
+    "    private static final int SCALE = 10;",
+    "    ",
+    "    // Driver storage: driverId -> hourlyRate",
+    "    private final Map<Integer, BigDecimal> drivers;",
+    "    ",
+    "    // Cost tracking",
+    "    private BigDecimal totalCost;",
+    "    private BigDecimal paidCost;",
+    "    ",
+    "    // Min-heap of deliveries sorted by endTime",
+    "    // Each entry: [endTime, cost]",
+    "    private final PriorityQueue<DeliveryEntry> unpaidDeliveries;",
+    "    ",
+    "    /**",
+    "     * Internal class to store delivery info in the heap.",
+    "     */",
+    "    private static class DeliveryEntry implements Comparable<DeliveryEntry> {",
+    "        final long endTime;",
+    "        final BigDecimal cost;",
+    "        ",
+    "        DeliveryEntry(long endTime, BigDecimal cost) {",
+    "            this.endTime = endTime;",
+    "            this.cost = cost;",
+    "        }",
+    "        ",
+    "        @Override",
+    "        public int compareTo(DeliveryEntry other) {",
+    "            return Long.compare(this.endTime, other.endTime);",
+    "        }",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Initialize the tracker with empty state.",
+    "     */",
+    "    public DeliveryCostTracker() {",
+    "        this.drivers = new HashMap<>();",
+    "        this.totalCost = BigDecimal.ZERO;",
+    "        this.paidCost = BigDecimal.ZERO;",
+    "        this.unpaidDeliveries = new PriorityQueue<>();",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Register a driver with their hourly rate.",
+    "     * ",
+    "     * @param driverId Unique identifier for the driver",
+    "     * @param hourlyRate Pay rate in dollars per hour",
+    "     */",
+    "    public void addDriver(int driverId, int hourlyRate) {",
+    "        drivers.put(driverId, new BigDecimal(hourlyRate));",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Record a completed delivery.",
+    "     * ",
+    "     * @param driverId ID of the driver who made the delivery",
+    "     * @param startTime Epoch seconds when delivery started",
+    "     * @param endTime Epoch seconds when delivery ended",
+    "     * @throws IllegalArgumentException if driver not found or invalid times",
+    "     */",
+    "    public void addDelivery(int driverId, long startTime, long endTime) {",
+    "        if (!drivers.containsKey(driverId)) {",
+    "            throw new IllegalArgumentException(\"Driver \" + driverId + \" not found\");",
+    "        }",
+    "        if (endTime < startTime) {",
+    "            throw new IllegalArgumentException(\"End time cannot be before start time\");",
+    "        }",
+    "        ",
+    "        // Calculate delivery cost",
+    "        BigDecimal rate = drivers.get(driverId);",
+    "        BigDecimal durationSeconds = new BigDecimal(endTime - startTime);",
+    "        BigDecimal durationHours = durationSeconds.divide(SECONDS_PER_HOUR, SCALE, RoundingMode.HALF_UP);",
+    "        BigDecimal cost = rate.multiply(durationHours);",
+    "        ",
+    "        // Update total cost",
+    "        totalCost = totalCost.add(cost);",
+    "        ",
+    "        // Add to unpaid deliveries heap",
+    "        unpaidDeliveries.offer(new DeliveryEntry(endTime, cost));",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Get the total cost of all recorded deliveries.",
+    "     * ",
+    "     * @return Total cost as BigDecimal",
+    "     */",
+    "    public BigDecimal getTotalCost() {",
+    "        return totalCost;",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Mark all deliveries ending at or before the given time as paid.",
+    "     * ",
+    "     * @param upToTime Pay all deliveries ending at or before this time",
+    "     */",
+    "    public void payUpToTime(long upToTime) {",
+    "        while (!unpaidDeliveries.isEmpty()) {",
+    "            DeliveryEntry entry = unpaidDeliveries.peek();",
+    "            ",
+    "            if (entry.endTime <= upToTime) {",
+    "                // This delivery is complete, pay it",
+    "                unpaidDeliveries.poll();",
+    "                paidCost = paidCost.add(entry.cost);",
+    "            } else {",
+    "                // All remaining deliveries end after the cutoff",
+    "                break;",
+    "            }",
+    "        }",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Get the total cost of unpaid deliveries.",
+    "     * ",
+    "     * @return Cost of deliveries not yet settled",
+    "     */",
+    "    public BigDecimal getCostToBePaid() {",
+    "        return totalCost.subtract(paidCost);",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Get total amount already paid. Useful for debugging.",
+    "     */",
+    "    public BigDecimal getPaidCost() {",
+    "        return paidCost;",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Get count of unpaid deliveries. Useful for debugging.",
+    "     */",
+    "    public int getUnpaidCount() {",
+    "        return unpaidDeliveries.size();",
+    "    }",
+    "    ",
+    "    public static void main(String[] args) {",
+    "        System.out.println(\"=\".repeat(60));",
+    "        System.out.println(\"Example 1: Basic Payment Flow\");",
+    "        System.out.println(\"=\".repeat(60));",
+    "        ",
+    "        DeliveryCostTracker tracker = new DeliveryCostTracker();",
+    "        ",
+    "        tracker.addDriver(1, 20);",
+    "        System.out.println(\"Added driver 1 with rate $20/hr\");",
+    "        ",
+    "        tracker.addDelivery(1, 0, 3600);",
+    "        tracker.addDelivery(1, 3600, 7200);",
+    "        System.out.println(\"Added two 1-hour deliveries\");",
+    "        ",
+    "        System.out.println(\"\\nTotal cost: $\" + tracker.getTotalCost());",
+    "        System.out.println(\"Cost to be paid: $\" + tracker.getCostToBePaid());",
+    "        ",
+    "        tracker.payUpToTime(3600);",
+    "        System.out.println(\"\\nAfter payUpToTime(3600):\");",
+    "        System.out.println(\"  Paid: $\" + tracker.getPaidCost());",
+    "        System.out.println(\"  Remaining: $\" + tracker.getCostToBePaid());",
+    "        ",
+    "        System.out.println(\"\\n\" + \"=\".repeat(60));",
+    "        System.out.println(\"Example 2: Multiple Drivers\");",
+    "        System.out.println(\"=\".repeat(60));",
+    "        ",
+    "        DeliveryCostTracker tracker2 = new DeliveryCostTracker();",
+    "        tracker2.addDriver(1, 10);",
+    "        tracker2.addDriver(2, 20);",
+    "        ",
+    "        tracker2.addDelivery(1, 0, 3600);      // $10",
+    "        tracker2.addDelivery(2, 1800, 5400);   // $20",
+    "        tracker2.addDelivery(1, 7200, 10800);  // $10",
+    "        ",
+    "        System.out.println(\"Total: $\" + tracker2.getTotalCost());",
+    "        ",
+    "        tracker2.payUpToTime(5400);",
+    "        System.out.println(\"After pay(5400): Remaining $\" + tracker2.getCostToBePaid());",
+    "        ",
+    "        tracker2.payUpToTime(10800);",
+    "        System.out.println(\"After pay(10800): Remaining $\" + tracker2.getCostToBePaid());",
+    "    }",
+    "}"
+  ],
+  "code_walkthrough": [
+    {
+      "lines": "1-12",
+      "explanation": "Module docstring and imports. We use Decimal for precision, heapq for the min-heap, and typing for type hints."
+    },
+    {
+      "lines": "14-27",
+      "explanation": "Class definition with docstring explaining the Part 2 extension. SECONDS_PER_HOUR constant avoids magic numbers."
+    },
+    {
+      "lines": "29-40",
+      "explanation": "__init__ sets up four data structures: drivers dict (from Part 1), total_cost running sum, paid_cost running sum (new), and unpaid_deliveries heap (new)."
+    },
+    {
+      "lines": "42-52",
+      "explanation": "add_driver unchanged from Part 1. Stores driver_id → hourly_rate mapping."
+    },
+    {
+      "lines": "54-81",
+      "explanation": "add_delivery now has TWO responsibilities: update total_cost (as in Part 1) AND push to the heap for payment tracking. The heap entry is (end_time, cost) - minimal info needed for payment settlement."
+    },
+    {
+      "lines": "83-92",
+      "explanation": "get_total_cost unchanged from Part 1. Returns the running total."
+    },
+    {
+      "lines": "94-116",
+      "explanation": "NEW: pay_up_to_time implements the core Part 2 logic. While loop pops deliveries from heap as long as their end_time <= up_to_time. Each popped cost is added to paid_cost. Loop breaks when we hit a delivery ending after the cutoff."
+    },
+    {
+      "lines": "118-129",
+      "explanation": "NEW: get_cost_to_be_paid is O(1) arithmetic: total_cost - paid_cost. No iteration needed because we maintain both running totals."
+    },
+    {
+      "lines": "131-138",
+      "explanation": "Debug/utility methods for testing and debugging. Not required but helpful."
+    },
+    {
+      "lines": "140-227",
+      "explanation": "main() demonstrates the tracker with examples matching the problem specification, plus edge cases."
+    }
+  ],
+  "complexity_analysis": {
+    "time": {
+      "new_methods": {
+        "pay_up_to_time": {
+          "complexity": "O(k log n) per call, O(log n) amortized per delivery",
+          "explanation": "Each heappop is O(log n). We pop k deliveries this call. But across ALL calls, each delivery is popped at most once, so total work is O(n log n) for n deliveries."
+        },
+        "get_cost_to_be_paid": {
+          "complexity": "O(1)",
+          "explanation": "Simple subtraction of two maintained Decimal values."
+        }
+      },
+      "modified_methods": {
+        "add_delivery": {
+          "was": "O(1) in Part 1",
+          "now": "O(log n)",
+          "explanation": "heappush adds O(log n) overhead per delivery."
+        }
+      },
+      "overall_change": "addDelivery goes from O(1) to O(log n). New operations are efficient. Overall system handles payment tracking without sacrificing performance."
+    },
+    "space": {
+      "additional_space": "O(n) for the heap",
+      "explanation": "We now store each delivery's (endTime, cost) in the heap. Part 1 could discard delivery details after adding to total. Part 2 must retain them until paid."
+    }
+  },
+  "dry_run": {
+    "example_input": "Example 2 from problem: Drivers 1 ($10/hr) and 2 ($20/hr). Deliveries: D1 (0-3600), D2 (1800-5400), D3 (7200-10800). Pay at 5400, then 10800.",
+    "steps": [
+      {
+        "step": 1,
+        "action": "addDriver(1, 10)",
+        "state": "drivers = {1: $10/hr}, heap = [], total = $0, paid = $0",
+        "explanation": "Register driver 1 with $10/hour rate"
+      },
+      {
+        "step": 2,
+        "action": "addDriver(2, 20)",
+        "state": "drivers = {1: $10/hr, 2: $20/hr}, heap = [], total = $0, paid = $0",
+        "explanation": "Register driver 2 with $20/hour rate"
+      },
+      {
+        "step": 3,
+        "action": "addDelivery(1, 0, 3600)",
+        "state": "heap = [(3600, $10)], total = $10, paid = $0",
+        "explanation": "D1: 1 hour at $10/hr = $10. Push (3600, $10) to heap."
+      },
+      {
+        "step": 4,
+        "action": "addDelivery(2, 1800, 5400)",
+        "state": "heap = [(3600, $10), (5400, $20)], total = $30, paid = $0",
+        "explanation": "D2: 1 hour at $20/hr = $20. Push (5400, $20) to heap."
+      },
+      {
+        "step": 5,
+        "action": "addDelivery(1, 7200, 10800)",
+        "state": "heap = [(3600, $10), (5400, $20), (10800, $10)], total = $40, paid = $0",
+        "explanation": "D3: 1 hour at $10/hr = $10. Push (10800, $10) to heap."
+      },
+      {
+        "step": 6,
+        "action": "payUpToTime(5400)",
+        "state": "Processing...",
+        "explanation": "Pay all deliveries ending at or before 5400"
+      },
+      {
+        "step": "6a",
+        "action": "Pop (3600, $10)",
+        "state": "heap = [(5400, $20), (10800, $10)], paid = $10",
+        "explanation": "3600 <= 5400 ✓ Pop D1, add $10 to paid"
+      },
+      {
+        "step": "6b",
+        "action": "Pop (5400, $20)",
+        "state": "heap = [(10800, $10)], paid = $30",
+        "explanation": "5400 <= 5400 ✓ Pop D2, add $20 to paid"
+      },
+      {
+        "step": "6c",
+        "action": "Peek (10800, $10)",
+        "state": "heap = [(10800, $10)], paid = $30",
+        "explanation": "10800 <= 5400 ✗ Stop. D3 stays in heap."
+      },
+      {
+        "step": 7,
+        "action": "getCostToBePaid()",
+        "state": "total = $40, paid = $30",
+        "explanation": "Return $40 - $30 = $10"
+      },
+      {
+        "step": 8,
+        "action": "payUpToTime(10800)",
+        "state": "Processing...",
+        "explanation": "Pay remaining deliveries"
+      },
+      {
+        "step": "8a",
+        "action": "Pop (10800, $10)",
+        "state": "heap = [], paid = $40",
+        "explanation": "10800 <= 10800 ✓ Pop D3, add $10 to paid"
+      },
+      {
+        "step": 9,
+        "action": "getCostToBePaid()",
+        "state": "total = $40, paid = $40",
+        "explanation": "Return $40 - $40 = $0"
+      }
+    ],
+    "final_output": "After pay(5400): $10 remaining. After pay(10800): $0 remaining. ✓ Matches expected output."
+  },
+  "debugging_playbook": {
+    "fast_sanity_checks": [
+      "Empty tracker: getCostToBePaid() should return 0",
+      "Single delivery: After paying past its endTime, getCostToBePaid() = 0",
+      "Pay with time before any delivery ends: getCostToBePaid() = totalCost"
+    ],
+    "likely_bugs": [
+      "Off-by-one: Using < instead of <= in payUpToTime (delivery ending exactly at upToTime should be paid)",
+      "Not updating paidCost when popping from heap",
+      "Forgetting to push to heap in addDelivery (only updating totalCost)",
+      "Using peek() instead of pop() or vice versa"
+    ],
+    "recommended_logs_or_asserts": [
+      "assert self._paid_cost <= self._total_cost, 'Paid more than total!'",
+      "log(f'payUpToTime({up_to_time}): popped {count} deliveries, paidCost now {self._paid_cost}')",
+      "assert len(self._unpaid_deliveries) >= 0, 'Heap went negative?'"
+    ],
+    "how_to_localize": "1. Print heap contents before/after payUpToTime. 2. Verify each delivery's cost calculation. 3. Check if endTime comparison uses <= not <. 4. Trace totalCost and paidCost after each operation."
+  },
+  "edge_cases": [
+    {
+      "case": "Empty tracker",
+      "handling": "Both getCostToBePaid and getTotalCost return 0. payUpToTime does nothing.",
+      "gotcha": "Make sure heap operations handle empty heap gracefully"
+    },
+    {
+      "case": "Pay before any delivery ends",
+      "handling": "payUpToTime(0) when first delivery ends at 3600: nothing paid, getCostToBePaid = totalCost",
+      "gotcha": "While loop condition checks heap[0] only when heap is non-empty"
+    },
+    {
+      "case": "Pay after all deliveries end",
+      "handling": "Pops all remaining deliveries, paidCost = totalCost, getCostToBePaid = 0",
+      "gotcha": "Loop correctly terminates when heap is empty"
+    },
+    {
+      "case": "Multiple deliveries with same endTime",
+      "handling": "All deliveries ending at that time are paid. Heap may have duplicates - that's fine.",
+      "gotcha": "Don't assume endTime is unique"
+    },
+    {
+      "case": "Calling payUpToTime multiple times with same time",
+      "handling": "First call pays eligible deliveries, subsequent calls do nothing (already paid)",
+      "gotcha": "Idempotent behavior - don't double-count"
+    },
+    {
+      "case": "Calling payUpToTime with decreasing times",
+      "handling": "If called with time 5000 then time 3000, second call has no effect (deliveries ending at 3000 were already paid)",
+      "gotcha": "Heap contains only unpaid deliveries, so already-paid ones aren't reconsidered"
+    },
+    {
+      "case": "Zero-duration delivery (startTime == endTime)",
+      "handling": "Cost = 0, but still pushed to heap and tracked",
+      "gotcha": "Decimal arithmetic with 0 should work correctly"
+    }
+  ],
+  "test_cases": [
+    {
+      "name": "Basic payment flow (Example 1)",
+      "input": "addDriver(1,20), addDelivery(1,0,3600), addDelivery(1,3600,7200), getTotalCost(), getCostToBePaid(), payUpToTime(3600), getCostToBePaid()",
+      "expected": "[null, null, null, 40, 40, null, 20]",
+      "explanation": "Two $20 deliveries. After paying up to 3600, first delivery paid, $20 remaining."
+    },
+    {
+      "name": "Multiple drivers (Example 2)",
+      "input": "addDriver(1,10), addDriver(2,20), addDelivery(1,0,3600), addDelivery(2,1800,5400), addDelivery(1,7200,10800), payUpToTime(5400), getCostToBePaid(), payUpToTime(10800), getCostToBePaid()",
+      "expected": "[null, null, null, null, null, null, 10, null, 0]",
+      "explanation": "D1=$10, D2=$20, D3=$10. After pay(5400): $10 left. After pay(10800): $0 left."
+    },
+    {
+      "name": "Pay before any delivery",
+      "input": "addDriver(1,20), addDelivery(1,1000,2000), payUpToTime(500), getCostToBePaid()",
+      "expected": "[null, null, null, ~5.56]",
+      "explanation": "Delivery ends at 2000, paying up to 500 does nothing"
+    },
+    {
+      "name": "Same endTime deliveries",
+      "input": "addDriver(1,36), addDelivery(1,0,3600), addDelivery(1,1000,3600), addDelivery(1,2000,3600), payUpToTime(3600), getCostToBePaid()",
+      "expected": "[null, null, null, null, null, 0]",
+      "explanation": "All three deliveries end at 3600, all should be paid"
+    },
+    {
+      "name": "Partial payment progression",
+      "input": "addDriver(1,10), addDelivery(1,0,100), addDelivery(1,0,200), addDelivery(1,0,300), payUpToTime(150), getCostToBePaid(), payUpToTime(250), getCostToBePaid()",
+      "expected": "[null, null, null, null, null, ~0.139, null, ~0.083]",
+      "explanation": "Progressive payment, checking intermediate states"
+    }
+  ],
+  "common_mistakes": [
+    {
+      "mistake": "Using < instead of <= in payUpToTime",
+      "why_wrong": "A delivery ending exactly at upToTime should be paid. The problem says 'end at or before'.",
+      "correct_approach": "Use end_time <= up_to_time",
+      "code_example_wrong": "if end_time < up_to_time:  # WRONG",
+      "code_example_correct": "if end_time <= up_to_time:  # CORRECT"
+    },
+    {
+      "mistake": "Forgetting to push to heap in addDelivery",
+      "why_wrong": "Without heap entry, delivery can never be paid by payUpToTime",
+      "correct_approach": "Always push (end_time, cost) to heap after calculating cost",
+      "code_example_wrong": "def add_delivery(...):\n    self._total_cost += cost\n    # Forgot to push to heap!",
+      "code_example_correct": "def add_delivery(...):\n    self._total_cost += cost\n    heapq.heappush(self._unpaid_deliveries, (end_time, cost))"
+    },
+    {
+      "mistake": "Scanning list instead of using heap",
+      "why_wrong": "O(n) per payUpToTime call violates the O(log n) amortized requirement",
+      "correct_approach": "Use min-heap for O(log n) extraction of minimum elements",
+      "code_example_wrong": "for delivery in self._deliveries:\n    if delivery.end_time <= up_to_time:\n        # pay it",
+      "code_example_correct": "while heap and heap[0][0] <= up_to_time:\n    heapq.heappop(heap)"
+    },
+    {
+      "mistake": "Using float instead of Decimal for currency",
+      "why_wrong": "Float precision errors accumulate. 0.1 + 0.2 != 0.3 in float.",
+      "correct_approach": "Use Decimal (Python) or BigDecimal (Java) for all money calculations",
+      "code_example_wrong": "cost = float(rate) * float(duration) / 3600.0",
+      "code_example_correct": "cost = Decimal(str(rate)) * Decimal(str(duration)) / Decimal('3600')"
+    },
+    {
+      "mistake": "Not handling empty heap in payUpToTime",
+      "why_wrong": "Accessing heap[0] when heap is empty raises IndexError",
+      "correct_approach": "Check heap is non-empty before peeking",
+      "code_example_wrong": "while self._heap[0][0] <= up_to_time:  # Crashes if heap empty",
+      "code_example_correct": "while self._heap and self._heap[0][0] <= up_to_time:"
+    }
+  ],
+  "interview_tips": {
+    "how_to_present": "Start by acknowledging what changes: 'Part 1 didn't need to store individual deliveries - just a running total. Part 2 requires tracking WHICH deliveries are paid, so I need to store them sorted by end time for efficient payment queries.' Then explain your data structure choice before coding.",
+    "what_to_mention": [
+      "Explicitly state the O(log n) amortized guarantee and explain WHY (each delivery pushed once, popped once)",
+      "Note that getCostToBePaid is O(1) because you maintain running totals",
+      "Mention the tradeoff: addDelivery is now O(log n) instead of O(1)",
+      "Consider mentioning alternative structures (TreeMap) and why heap was chosen"
+    ],
+    "time_allocation": "Spend 2-3 min understanding requirements, 2 min explaining approach, 5-6 min coding, 2 min testing/edge cases",
+    "if_stuck": [
+      "Think about what data you need to answer 'which deliveries end before time X?' efficiently",
+      "What data structure lets you quickly find/remove minimum elements?",
+      "How can you make getCostToBePaid O(1)? (Hint: running totals)"
+    ]
+  },
+  "connection_to_next_part": "If Part 3 adds per-driver queries (e.g., 'get unpaid cost for driver X'), you might need a separate heap per driver or a compound data structure. The current design can be extended by storing (endTime, cost, driverId) in the heap and maintaining per-driver totals. Alternatively, store deliveries in a TreeMap if Part 3 needs range queries.",
+  "communication_script": {
+    "transition_from_previous": "Great, Part 1 is working with O(1) operations. For Part 2, I need to track which deliveries have been paid so I can settle them by time. The key insight is that I now need to store individual deliveries sorted by end time.",
+    "explaining_changes": "I'll add a min-heap sorted by endTime. When payUpToTime is called, I'll pop all deliveries ending at or before that time. I'll also track paidCost separately so getCostToBePaid is just totalCost minus paidCost - O(1).",
+    "while_extending_code": [
+      "Adding the unpaid_deliveries heap to __init__...",
+      "Modifying addDelivery to push (endTime, cost) to the heap...",
+      "Implementing payUpToTime with a while loop that pops from the heap...",
+      "getCostToBePaid is simple: return totalCost - paidCost"
+    ],
+    "after_completing": "Part 2 is done. payUpToTime is O(k log n) per call but amortized O(log n) per delivery since each is popped at most once. getCostToBePaid is O(1). Ready for Part 3 if there is one!"
+  },
+  "time_milestones": {
+    "time_budget": "8-12 minutes for this part",
+    "by_2_min": "Understand new requirements. Identify that Part 1's 'aggregate only' approach is insufficient. Plan to use a sorted structure.",
+    "by_5_min": "Explain approach (min-heap + running totals). Start modifying code - add heap to __init__, update addDelivery.",
+    "by_10_min": "Finish implementing payUpToTime and getCostToBePaid. Run through example to verify.",
+    "warning_signs": "If still deciding between data structures at 5 min, just pick min-heap and go. If code isn't compiling by 10 min, simplify."
+  },
+  "recovery_strategies": {
+    "if_part_builds_wrong": "If Part 1 has a bug (e.g., wrong cost calculation), fix it first. Say: 'I notice my Part 1 costs are off - let me fix that before adding payment tracking.' Better to have correct foundation.",
+    "if_new_requirement_unclear": "Ask: 'Does payUpToTime with the same time multiple times have any effect? And does it only consider endTime, not startTime?' These clarify boundary conditions.",
+    "if_running_behind": "Focus on getting payUpToTime working first. getCostToBePaid is trivial once you have paidCost tracked. Skip utility methods and edge case handling if needed, but mention them verbally."
+  },
+  "signal_points": {
+    "wow_factors_for_followup": [
+      "Immediately recognizing the need to store deliveries (Part 1 didn't require it)",
+      "Explaining amortized complexity correctly: 'Each delivery is pushed once and popped once'",
+      "Mentioning the addDelivery slowdown from O(1) to O(log n) proactively",
+      "Discussing alternatives (TreeMap) and when they'd be better",
+      "Noting that the design is extensible: 'If we need per-driver payment tracking, we could add driver info to heap entries'"
+    ]
+  },
+  "generated_at": "2026-01-17T16:19:59.982868",
+  "_meta": {
+    "problem_id": "delivery_cost_tracking",
+    "part_number": 2,
+    "model": "claude-opus-4-5-20251101"
+  }
+}

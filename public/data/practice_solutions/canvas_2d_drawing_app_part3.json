@@ -1,0 +1,1018 @@
+{
+  "problem_title": "2D Canvas / Drawing Application - Part 3: Delete Shape and Z-Order Control",
+  "part_number": 3,
+  "builds_on": "Part 2",
+  "difficulty": "medium",
+  "problem_understanding": {
+    "what_changes": "Part 3 extends the canvas with **deletion** and **z-order manipulation**. While Parts 1-2 only allowed adding shapes and querying/moving them, Part 3 introduces the ability to remove shapes entirely and change their visual stacking order. This fundamentally affects how `getShapeAt` behaves since the 'topmost' shape can now change dynamically.",
+    "new_requirements": [
+      "deleteShape(shapeId) - completely remove a shape from the canvas",
+      "bringToFront(shapeId) - move shape to top of z-order (drawn last, visible on top)",
+      "sendToBack(shapeId) - move shape to bottom of z-order (drawn first, behind others)"
+    ],
+    "new_constraints": [
+      "Operations should handle invalid shapeIds gracefully (no-op)",
+      "Z-order must be maintained consistently after all operations",
+      "getShapeAt must still return topmost shape after z-order changes"
+    ],
+    "key_insight": "Z-order is simply list position! The shape at the END of the list is 'on top'. All z-order operations are just list manipulations: delete removes from list, bringToFront moves to end, sendToBack moves to beginning."
+  },
+  "requirements_coverage": {
+    "checklist": [
+      {
+        "requirement": "deleteShape removes shape completely",
+        "how_met": "Remove from both HashMap (for O(1) future lookups) and z-order list",
+        "gotchas": [
+          "Must remove from BOTH data structures or state becomes inconsistent"
+        ]
+      },
+      {
+        "requirement": "bringToFront makes shape topmost",
+        "how_met": "Remove from current position in list, append to end",
+        "gotchas": [
+          "Don't forget shape might already be at front - still works correctly"
+        ]
+      },
+      {
+        "requirement": "sendToBack makes shape bottommost",
+        "how_met": "Remove from current position in list, insert at index 0",
+        "gotchas": [
+          "insert(0, item) is O(n) for ArrayList - acceptable for this problem"
+        ]
+      },
+      {
+        "requirement": "getShapeAt still works correctly",
+        "how_met": "Still iterates from end (top) to beginning (bottom) of z-order list",
+        "gotchas": [
+          "No changes needed to getShapeAt itself"
+        ]
+      }
+    ],
+    "complexity_targets": [
+      {
+        "operation": "deleteShape",
+        "target": "O(n)",
+        "achieved": "O(n)",
+        "why": "List removal is O(n), HashMap removal is O(1)"
+      },
+      {
+        "operation": "bringToFront",
+        "target": "O(n)",
+        "achieved": "O(n)",
+        "why": "List removal is O(n), append is O(1)"
+      },
+      {
+        "operation": "sendToBack",
+        "target": "O(n)",
+        "achieved": "O(n)",
+        "why": "List removal is O(n), insert at 0 is O(n)"
+      }
+    ],
+    "non_goals": [
+      "O(1) z-order operations (would require more complex data structures)",
+      "Undo/redo functionality",
+      "Relative z-order changes (move up one level, move down one level)"
+    ]
+  },
+  "assumptions": [
+    "Invalid shapeIds should be silently ignored (no exceptions thrown)",
+    "bringToFront on already-front shape is a no-op (still valid)",
+    "sendToBack on already-back shape is a no-op (still valid)",
+    "Shape counters continue incrementing even after deletions (rect_1, rect_2, delete rect_1, new rect is rect_3)"
+  ],
+  "tradeoffs": [
+    {
+      "decision": "ArrayList vs LinkedList for z-order",
+      "chosen": "ArrayList",
+      "why": "Simpler implementation, good cache locality for iteration in getShapeAt, removal is O(n) either way without node references",
+      "alternative": "LinkedList with stored node references",
+      "when_to_switch": "If z-order operations are extremely frequent and getShapeAt is rare"
+    },
+    {
+      "decision": "Separate z-order list vs z-index stored in Shape",
+      "chosen": "Separate list",
+      "why": "List position naturally encodes z-order, no need to renumber on changes",
+      "alternative": "Store z-index integer in each Shape, use TreeMap",
+      "when_to_switch": "If you need O(1) relative ordering queries"
+    }
+  ],
+  "extensibility_notes": {
+    "what_to_keep_stable": [
+      "HashMap<String, Shape> for O(1) lookup by ID",
+      "List<Shape> ordered by z-index (end = top)",
+      "Shape abstract class with containsPoint and moveTo methods"
+    ],
+    "what_to_change": [
+      "Added delete_shape method to remove shapes",
+      "Added bring_to_front and send_to_back for z-order manipulation"
+    ],
+    "interfaces_and_boundaries": "The Shape abstract class remains unchanged. All new operations work at the Canvas level by manipulating the existing data structures. Part 4 could add grouping, selection, or more complex z-order operations without changing the core structure.",
+    "invariants": [
+      "Every shape in _shapes HashMap MUST exist in _z_order list (and vice versa)",
+      "Shape IDs are unique and never reused",
+      "_z_order list has no duplicates"
+    ]
+  },
+  "visual_explanation": {
+    "before_after": "```\nBEFORE deleteShape(\"rect_2\"):\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502         Z-ORDER STACK              \u2502\n\u2502  \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510               \u2502\n\u2502  \u2502     rect_2      \u2502 \u2190 TOP         \u2502\n\u2502  \u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524               \u2502\n\u2502  \u2502     rect_1      \u2502 \u2190 BOTTOM      \u2502\n\u2502  \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518               \u2502\n\u2502                                    \u2502\n\u2502  getShapeAt(30,30) \u2192 \"rect_2\"      \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n\nAFTER deleteShape(\"rect_2\"):\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502         Z-ORDER STACK              \u2502\n\u2502  \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510               \u2502\n\u2502  \u2502     rect_1      \u2502 \u2190 ONLY ONE    \u2502\n\u2502  \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518               \u2502\n\u2502                                    \u2502\n\u2502  getShapeAt(30,30) \u2192 \"rect_1\"      \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n```",
+    "algorithm_flow": "```\nbringToFront(\"rect_1\"):\n\nSTEP 1: Find shape in HashMap    STEP 2: Remove from list      STEP 3: Append to end\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510                       \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510                    \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502 rect_2 \u2502 \u2190 top                 \u2502 rect_2 \u2502 \u2190 top              \u2502 rect_1 \u2502 \u2190 NEW top\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524                       \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518                    \u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502 rect_1 \u2502 \u2190 find this                                         \u2502 rect_2 \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518                                                     \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n\nResult: rect_1 is now on top!\n```"
+  },
+  "approaches": [
+    {
+      "name": "Naive Extension - Scan for Shape",
+      "description": "Each operation scans the z-order list to find the shape by ID",
+      "time_complexity": "O(n) per operation",
+      "space_complexity": "O(1) additional",
+      "why_not_optimal": "We already have a HashMap from previous parts, so lookup should be O(1). Scanning by ID is wasteful."
+    },
+    {
+      "name": "Optimal Approach - HashMap + List",
+      "description": "Use HashMap for O(1) ID lookup, then manipulate the z-order list. List removal is still O(n) but lookup is instant.",
+      "time_complexity": "O(n) per operation (dominated by list manipulation)",
+      "space_complexity": "O(1) additional",
+      "key_insight": "The HashMap gives us the Shape object directly. We then use list.remove(shape) which uses object equality, not scanning by ID."
+    }
+  ],
+  "optimal_solution": {
+    "explanation_md": "The solution leverages the **existing data structures** from Parts 1-2:\n\n1. **HashMap** for O(1) lookup of shapes by ID\n2. **ArrayList** for z-ordering where **position = z-index** (end = top)\n\n### Delete Shape\n```\n1. Look up shape in HashMap \u2192 O(1)\n2. Remove shape from z-order list \u2192 O(n)\n3. Remove shape from HashMap \u2192 O(1)\n```\n\n### Bring to Front\n```\n1. Look up shape in HashMap \u2192 O(1)\n2. Remove shape from current position \u2192 O(n)\n3. Append shape to end of list \u2192 O(1)\n```\n\n### Send to Back\n```\n1. Look up shape in HashMap \u2192 O(1)\n2. Remove shape from current position \u2192 O(n)\n3. Insert shape at index 0 \u2192 O(n)\n```\n\nThe **key insight** is that z-order is just list position. No need for complex priority queues or balanced trees - simple list operations suffice for the expected workload.",
+    "data_structures": [
+      {
+        "structure": "HashMap<String, Shape>",
+        "purpose": "O(1) lookup by shape ID"
+      },
+      {
+        "structure": "ArrayList<Shape>",
+        "purpose": "Z-order storage where index represents drawing order"
+      }
+    ],
+    "algorithm_steps": [
+      "Step 1: Validate shapeId exists in HashMap (return early if not)",
+      "Step 2: Get the Shape object from HashMap - O(1)",
+      "Step 3: Perform list operation (remove, then add at appropriate position)",
+      "Step 4: For delete, also remove from HashMap"
+    ]
+  },
+  "solution_python_lines": [
+    "from typing import Optional, Dict, List",
+    "from abc import ABC, abstractmethod",
+    "",
+    "",
+    "class Shape(ABC):",
+    "    \"\"\"Abstract base class for all shapes on the canvas.\"\"\"",
+    "    ",
+    "    def __init__(self, shape_id: str):",
+    "        self.id = shape_id",
+    "    ",
+    "    @abstractmethod",
+    "    def contains_point(self, x: int, y: int) -> bool:",
+    "        \"\"\"Check if the given point is inside the shape.\"\"\"",
+    "        pass",
+    "    ",
+    "    @abstractmethod",
+    "    def move_to(self, new_x: int, new_y: int) -> None:",
+    "        \"\"\"Move the shape to a new position.\"\"\"",
+    "        pass",
+    "",
+    "",
+    "class Rectangle(Shape):",
+    "    \"\"\"A rectangle defined by top-left corner, width, and height.\"\"\"",
+    "    ",
+    "    def __init__(self, shape_id: str, x: int, y: int, width: int, height: int):",
+    "        super().__init__(shape_id)",
+    "        self.x = x",
+    "        self.y = y",
+    "        self.width = width",
+    "        self.height = height",
+    "    ",
+    "    def contains_point(self, px: int, py: int) -> bool:",
+    "        \"\"\"Check if point is inside rectangle (inclusive boundaries).\"\"\"",
+    "        return (self.x <= px <= self.x + self.width and",
+    "                self.y <= py <= self.y + self.height)",
+    "    ",
+    "    def move_to(self, new_x: int, new_y: int) -> None:",
+    "        \"\"\"Move rectangle by updating top-left corner.\"\"\"",
+    "        self.x = new_x",
+    "        self.y = new_y",
+    "",
+    "",
+    "class Circle(Shape):",
+    "    \"\"\"A circle defined by center point and radius.\"\"\"",
+    "    ",
+    "    def __init__(self, shape_id: str, center_x: int, center_y: int, radius: int):",
+    "        super().__init__(shape_id)",
+    "        self.center_x = center_x",
+    "        self.center_y = center_y",
+    "        self.radius = radius",
+    "    ",
+    "    def contains_point(self, px: int, py: int) -> bool:",
+    "        \"\"\"Check if point is inside circle (inclusive boundary).\"\"\"",
+    "        distance_squared = (px - self.center_x) ** 2 + (py - self.center_y) ** 2",
+    "        return distance_squared <= self.radius ** 2",
+    "    ",
+    "    def move_to(self, new_x: int, new_y: int) -> None:",
+    "        \"\"\"Move circle by updating center.\"\"\"",
+    "        self.center_x = new_x",
+    "        self.center_y = new_y",
+    "",
+    "",
+    "class Canvas:",
+    "    \"\"\"",
+    "    A 2D canvas for creating and manipulating shapes.",
+    "    ",
+    "    Supports rectangles and circles with z-ordering.",
+    "    Later created shapes appear on top of earlier ones.",
+    "    Z-order can be modified via bringToFront/sendToBack.",
+    "    \"\"\"",
+    "    ",
+    "    def __init__(self):",
+    "        \"\"\"Initialize an empty canvas.\"\"\"",
+    "        # HashMap for O(1) lookup by ID",
+    "        self._shapes: Dict[str, Shape] = {}",
+    "        # List for z-ordering (end = top, start = bottom)",
+    "        self._z_order: List[Shape] = []",
+    "        # Counters for generating unique IDs",
+    "        self._rect_counter = 0",
+    "        self._circle_counter = 0",
+    "    ",
+    "    def create_rectangle(self, x: int, y: int, width: int, height: int) -> str:",
+    "        \"\"\"",
+    "        Create a new rectangle on the canvas.",
+    "        ",
+    "        Args:",
+    "            x: X-coordinate of top-left corner",
+    "            y: Y-coordinate of top-left corner",
+    "            width: Width of the rectangle",
+    "            height: Height of the rectangle",
+    "            ",
+    "        Returns:",
+    "            The unique ID assigned to the rectangle (e.g., 'rect_1')",
+    "        \"\"\"",
+    "        self._rect_counter += 1",
+    "        shape_id = f\"rect_{self._rect_counter}\"",
+    "        ",
+    "        rectangle = Rectangle(shape_id, x, y, width, height)",
+    "        self._shapes[shape_id] = rectangle",
+    "        self._z_order.append(rectangle)  # New shapes go on top",
+    "        ",
+    "        return shape_id",
+    "    ",
+    "    def create_circle(self, center_x: int, center_y: int, radius: int) -> str:",
+    "        \"\"\"",
+    "        Create a new circle on the canvas.",
+    "        ",
+    "        Args:",
+    "            center_x: X-coordinate of the center",
+    "            center_y: Y-coordinate of the center",
+    "            radius: Radius of the circle",
+    "            ",
+    "        Returns:",
+    "            The unique ID assigned to the circle (e.g., 'circle_1')",
+    "        \"\"\"",
+    "        self._circle_counter += 1",
+    "        shape_id = f\"circle_{self._circle_counter}\"",
+    "        ",
+    "        circle = Circle(shape_id, center_x, center_y, radius)",
+    "        self._shapes[shape_id] = circle",
+    "        self._z_order.append(circle)  # New shapes go on top",
+    "        ",
+    "        return shape_id",
+    "    ",
+    "    def get_shape_at(self, x: int, y: int) -> Optional[str]:",
+    "        \"\"\"",
+    "        Find the topmost shape at the given coordinates.",
+    "        ",
+    "        Args:",
+    "            x: X-coordinate to query",
+    "            y: Y-coordinate to query",
+    "            ",
+    "        Returns:",
+    "            ID of the topmost shape at (x, y), or None if no shape found",
+    "        \"\"\"",
+    "        # Iterate from end (top) to beginning (bottom)",
+    "        for shape in reversed(self._z_order):",
+    "            if shape.contains_point(x, y):",
+    "                return shape.id",
+    "        return None",
+    "    ",
+    "    def move_shape(self, shape_id: str, new_x: int, new_y: int) -> None:",
+    "        \"\"\"",
+    "        Move a shape to a new position.",
+    "        ",
+    "        Args:",
+    "            shape_id: ID of the shape to move",
+    "            new_x: New X-coordinate (top-left for rect, center for circle)",
+    "            new_y: New Y-coordinate (top-left for rect, center for circle)",
+    "        \"\"\"",
+    "        if shape_id not in self._shapes:",
+    "            return  # Silently ignore invalid IDs",
+    "        ",
+    "        self._shapes[shape_id].move_to(new_x, new_y)",
+    "    ",
+    "    # ==================== PART 3: New Methods ====================",
+    "    ",
+    "    def delete_shape(self, shape_id: str) -> None:",
+    "        \"\"\"",
+    "        Remove a shape from the canvas completely.",
+    "        ",
+    "        Args:",
+    "            shape_id: ID of the shape to delete",
+    "            ",
+    "        Time Complexity: O(n) where n is number of shapes",
+    "        \"\"\"",
+    "        if shape_id not in self._shapes:",
+    "            return  # Silently ignore invalid IDs",
+    "        ",
+    "        shape = self._shapes[shape_id]",
+    "        ",
+    "        # Remove from z-order list - O(n)",
+    "        self._z_order.remove(shape)",
+    "        ",
+    "        # Remove from HashMap - O(1)",
+    "        del self._shapes[shape_id]",
+    "    ",
+    "    def bring_to_front(self, shape_id: str) -> None:",
+    "        \"\"\"",
+    "        Move a shape to the top of the z-order (drawn last, appears on top).",
+    "        ",
+    "        Args:",
+    "            shape_id: ID of the shape to bring to front",
+    "            ",
+    "        Time Complexity: O(n) where n is number of shapes",
+    "        \"\"\"",
+    "        if shape_id not in self._shapes:",
+    "            return  # Silently ignore invalid IDs",
+    "        ",
+    "        shape = self._shapes[shape_id]",
+    "        ",
+    "        # Remove from current position - O(n)",
+    "        self._z_order.remove(shape)",
+    "        ",
+    "        # Add to end (top) - O(1) amortized",
+    "        self._z_order.append(shape)",
+    "    ",
+    "    def send_to_back(self, shape_id: str) -> None:",
+    "        \"\"\"",
+    "        Move a shape to the bottom of the z-order (drawn first, appears behind).",
+    "        ",
+    "        Args:",
+    "            shape_id: ID of the shape to send to back",
+    "            ",
+    "        Time Complexity: O(n) where n is number of shapes",
+    "        \"\"\"",
+    "        if shape_id not in self._shapes:",
+    "            return  # Silently ignore invalid IDs",
+    "        ",
+    "        shape = self._shapes[shape_id]",
+    "        ",
+    "        # Remove from current position - O(n)",
+    "        self._z_order.remove(shape)",
+    "        ",
+    "        # Insert at beginning (bottom) - O(n) for list",
+    "        self._z_order.insert(0, shape)",
+    "",
+    "",
+    "def main():",
+    "    \"\"\"Demonstrate Part 3 functionality: delete and z-order control.\"\"\"",
+    "    ",
+    "    print(\"=\" * 60)",
+    "    print(\"2D Canvas - Part 3: Delete Shape & Z-Order Control\")",
+    "    print(\"=\" * 60)",
+    "    ",
+    "    # Example 1: Delete Shape",
+    "    print(\"\\n--- Example 1: Delete Shape ---\")",
+    "    canvas = Canvas()",
+    "    ",
+    "    rect1 = canvas.create_rectangle(0, 0, 50, 50)",
+    "    print(f\"Created {rect1}\")",
+    "    ",
+    "    rect2 = canvas.create_rectangle(25, 25, 50, 50)",
+    "    print(f\"Created {rect2}\")",
+    "    ",
+    "    # Point (30, 30) is in overlap area",
+    "    result = canvas.get_shape_at(30, 30)",
+    "    print(f\"Shape at (30, 30): {result}\")  # rect_2 (on top)",
+    "    assert result == \"rect_2\", \"Should return topmost shape\"",
+    "    ",
+    "    # Delete rect_2",
+    "    canvas.delete_shape(\"rect_2\")",
+    "    print(\"Deleted rect_2\")",
+    "    ",
+    "    result = canvas.get_shape_at(30, 30)",
+    "    print(f\"Shape at (30, 30) after delete: {result}\")  # rect_1",
+    "    assert result == \"rect_1\", \"rect_1 should now be visible\"",
+    "    ",
+    "    # Example 2: Bring to Front",
+    "    print(\"\\n--- Example 2: Bring to Front ---\")",
+    "    canvas2 = Canvas()",
+    "    ",
+    "    r1 = canvas2.create_rectangle(0, 0, 50, 50)",
+    "    r2 = canvas2.create_rectangle(25, 25, 50, 50)",
+    "    print(f\"Created {r1}, then {r2}\")",
+    "    ",
+    "    result = canvas2.get_shape_at(30, 30)",
+    "    print(f\"Shape at (30, 30): {result}\")  # rect_2 (on top initially)",
+    "    assert result == \"rect_2\"",
+    "    ",
+    "    canvas2.bring_to_front(\"rect_1\")",
+    "    print(\"Brought rect_1 to front\")",
+    "    ",
+    "    result = canvas2.get_shape_at(30, 30)",
+    "    print(f\"Shape at (30, 30) after bringToFront: {result}\")  # rect_1",
+    "    assert result == \"rect_1\", \"rect_1 should now be on top\"",
+    "    ",
+    "    # Example 3: Send to Back",
+    "    print(\"\\n--- Example 3: Send to Back ---\")",
+    "    canvas3 = Canvas()",
+    "    ",
+    "    canvas3.create_rectangle(0, 0, 50, 50)",
+    "    canvas3.create_rectangle(25, 25, 50, 50)",
+    "    canvas3.create_circle(60, 60, 20)",
+    "    print(\"Created rect_1, rect_2, circle_1\")",
+    "    print(\"Z-order (bottom to top): rect_1, rect_2, circle_1\")",
+    "    ",
+    "    result = canvas3.get_shape_at(30, 30)",
+    "    print(f\"Shape at (30, 30): {result}\")  # rect_2",
+    "    assert result == \"rect_2\"",
+    "    ",
+    "    canvas3.send_to_back(\"rect_2\")",
+    "    print(\"Sent rect_2 to back\")",
+    "    print(\"New Z-order: rect_2, rect_1, circle_1\")",
+    "    ",
+    "    result = canvas3.get_shape_at(30, 30)",
+    "    print(f\"Shape at (30, 30) after sendToBack: {result}\")  # rect_1",
+    "    assert result == \"rect_1\", \"rect_1 should now be on top of rect_2\"",
+    "    ",
+    "    # Example 4: Edge cases",
+    "    print(\"\\n--- Example 4: Edge Cases ---\")",
+    "    canvas4 = Canvas()",
+    "    ",
+    "    # Operations on non-existent shape",
+    "    canvas4.delete_shape(\"nonexistent\")  # Should not crash",
+    "    canvas4.bring_to_front(\"nonexistent\")  # Should not crash",
+    "    canvas4.send_to_back(\"nonexistent\")  # Should not crash",
+    "    print(\"Operations on non-existent shape handled gracefully\")",
+    "    ",
+    "    # Shape already at front/back",
+    "    canvas4.create_rectangle(0, 0, 10, 10)",
+    "    canvas4.bring_to_front(\"rect_1\")  # Already at front",
+    "    canvas4.send_to_back(\"rect_1\")  # Now at back (only shape)",
+    "    print(\"Operations on already-positioned shapes work correctly\")",
+    "    ",
+    "    print(\"\\n\" + \"=\" * 60)",
+    "    print(\"All Part 3 tests passed!\")",
+    "    print(\"=\" * 60)",
+    "",
+    "",
+    "if __name__ == \"__main__\":",
+    "    main()"
+  ],
+  "solution_java_lines": [
+    "import java.util.*;",
+    "",
+    "abstract class Shape {",
+    "    protected String id;",
+    "    ",
+    "    public Shape(String id) {",
+    "        this.id = id;",
+    "    }",
+    "    ",
+    "    public String getId() {",
+    "        return id;",
+    "    }",
+    "    ",
+    "    public abstract boolean containsPoint(int x, int y);",
+    "    public abstract void moveTo(int newX, int newY);",
+    "}",
+    "",
+    "class Rectangle extends Shape {",
+    "    private int x, y, width, height;",
+    "    ",
+    "    public Rectangle(String id, int x, int y, int width, int height) {",
+    "        super(id);",
+    "        this.x = x;",
+    "        this.y = y;",
+    "        this.width = width;",
+    "        this.height = height;",
+    "    }",
+    "    ",
+    "    @Override",
+    "    public boolean containsPoint(int px, int py) {",
+    "        return px >= x && px <= x + width && py >= y && py <= y + height;",
+    "    }",
+    "    ",
+    "    @Override",
+    "    public void moveTo(int newX, int newY) {",
+    "        this.x = newX;",
+    "        this.y = newY;",
+    "    }",
+    "}",
+    "",
+    "class Circle extends Shape {",
+    "    private int centerX, centerY, radius;",
+    "    ",
+    "    public Circle(String id, int centerX, int centerY, int radius) {",
+    "        super(id);",
+    "        this.centerX = centerX;",
+    "        this.centerY = centerY;",
+    "        this.radius = radius;",
+    "    }",
+    "    ",
+    "    @Override",
+    "    public boolean containsPoint(int px, int py) {",
+    "        long dx = px - centerX;",
+    "        long dy = py - centerY;",
+    "        return dx * dx + dy * dy <= (long) radius * radius;",
+    "    }",
+    "    ",
+    "    @Override",
+    "    public void moveTo(int newX, int newY) {",
+    "        this.centerX = newX;",
+    "        this.centerY = newY;",
+    "    }",
+    "}",
+    "",
+    "public class Canvas {",
+    "    private Map<String, Shape> shapes;",
+    "    private List<Shape> zOrder;",
+    "    private int rectCounter;",
+    "    private int circleCounter;",
+    "    ",
+    "    public Canvas() {",
+    "        shapes = new HashMap<>();",
+    "        zOrder = new ArrayList<>();",
+    "        rectCounter = 0;",
+    "        circleCounter = 0;",
+    "    }",
+    "    ",
+    "    public String createRectangle(int x, int y, int width, int height) {",
+    "        rectCounter++;",
+    "        String shapeId = \"rect_\" + rectCounter;",
+    "        Rectangle rect = new Rectangle(shapeId, x, y, width, height);",
+    "        shapes.put(shapeId, rect);",
+    "        zOrder.add(rect);",
+    "        return shapeId;",
+    "    }",
+    "    ",
+    "    public String createCircle(int centerX, int centerY, int radius) {",
+    "        circleCounter++;",
+    "        String shapeId = \"circle_\" + circleCounter;",
+    "        Circle circle = new Circle(shapeId, centerX, centerY, radius);",
+    "        shapes.put(shapeId, circle);",
+    "        zOrder.add(circle);",
+    "        return shapeId;",
+    "    }",
+    "    ",
+    "    public String getShapeAt(int x, int y) {",
+    "        for (int i = zOrder.size() - 1; i >= 0; i--) {",
+    "            Shape shape = zOrder.get(i);",
+    "            if (shape.containsPoint(x, y)) {",
+    "                return shape.getId();",
+    "            }",
+    "        }",
+    "        return null;",
+    "    }",
+    "    ",
+    "    public void moveShape(String shapeId, int newX, int newY) {",
+    "        Shape shape = shapes.get(shapeId);",
+    "        if (shape != null) {",
+    "            shape.moveTo(newX, newY);",
+    "        }",
+    "    }",
+    "    ",
+    "    // ==================== PART 3: New Methods ====================",
+    "    ",
+    "    /**",
+    "     * Remove a shape from the canvas completely.",
+    "     * @param shapeId ID of the shape to delete",
+    "     */",
+    "    public void deleteShape(String shapeId) {",
+    "        Shape shape = shapes.get(shapeId);",
+    "        if (shape == null) {",
+    "            return;  // Silently ignore invalid IDs",
+    "        }",
+    "        zOrder.remove(shape);  // O(n)",
+    "        shapes.remove(shapeId);  // O(1)",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Move a shape to the top of the z-order (drawn last, appears on top).",
+    "     * @param shapeId ID of the shape to bring to front",
+    "     */",
+    "    public void bringToFront(String shapeId) {",
+    "        Shape shape = shapes.get(shapeId);",
+    "        if (shape == null) {",
+    "            return;  // Silently ignore invalid IDs",
+    "        }",
+    "        zOrder.remove(shape);  // Remove from current position - O(n)",
+    "        zOrder.add(shape);     // Add to end (top) - O(1)",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Move a shape to the bottom of the z-order (drawn first, appears behind).",
+    "     * @param shapeId ID of the shape to send to back",
+    "     */",
+    "    public void sendToBack(String shapeId) {",
+    "        Shape shape = shapes.get(shapeId);",
+    "        if (shape == null) {",
+    "            return;  // Silently ignore invalid IDs",
+    "        }",
+    "        zOrder.remove(shape);     // Remove from current position - O(n)",
+    "        zOrder.add(0, shape);     // Insert at beginning (bottom) - O(n)",
+    "    }",
+    "    ",
+    "    public static void main(String[] args) {",
+    "        System.out.println(\"============================================================\");",
+    "        System.out.println(\"2D Canvas - Part 3: Delete Shape & Z-Order Control\");",
+    "        System.out.println(\"============================================================\");",
+    "        ",
+    "        // Example 1: Delete Shape",
+    "        System.out.println(\"\\n--- Example 1: Delete Shape ---\");",
+    "        Canvas canvas = new Canvas();",
+    "        ",
+    "        String rect1 = canvas.createRectangle(0, 0, 50, 50);",
+    "        System.out.println(\"Created \" + rect1);",
+    "        ",
+    "        String rect2 = canvas.createRectangle(25, 25, 50, 50);",
+    "        System.out.println(\"Created \" + rect2);",
+    "        ",
+    "        String result = canvas.getShapeAt(30, 30);",
+    "        System.out.println(\"Shape at (30, 30): \" + result);  // rect_2",
+    "        ",
+    "        canvas.deleteShape(\"rect_2\");",
+    "        System.out.println(\"Deleted rect_2\");",
+    "        ",
+    "        result = canvas.getShapeAt(30, 30);",
+    "        System.out.println(\"Shape at (30, 30) after delete: \" + result);  // rect_1",
+    "        ",
+    "        // Example 2: Bring to Front",
+    "        System.out.println(\"\\n--- Example 2: Bring to Front ---\");",
+    "        Canvas canvas2 = new Canvas();",
+    "        ",
+    "        canvas2.createRectangle(0, 0, 50, 50);",
+    "        canvas2.createRectangle(25, 25, 50, 50);",
+    "        System.out.println(\"Created rect_1, then rect_2\");",
+    "        ",
+    "        result = canvas2.getShapeAt(30, 30);",
+    "        System.out.println(\"Shape at (30, 30): \" + result);  // rect_2",
+    "        ",
+    "        canvas2.bringToFront(\"rect_1\");",
+    "        System.out.println(\"Brought rect_1 to front\");",
+    "        ",
+    "        result = canvas2.getShapeAt(30, 30);",
+    "        System.out.println(\"Shape at (30, 30) after bringToFront: \" + result);  // rect_1",
+    "        ",
+    "        // Example 3: Send to Back",
+    "        System.out.println(\"\\n--- Example 3: Send to Back ---\");",
+    "        Canvas canvas3 = new Canvas();",
+    "        ",
+    "        canvas3.createRectangle(0, 0, 50, 50);",
+    "        canvas3.createRectangle(25, 25, 50, 50);",
+    "        canvas3.createCircle(60, 60, 20);",
+    "        System.out.println(\"Created rect_1, rect_2, circle_1\");",
+    "        ",
+    "        result = canvas3.getShapeAt(30, 30);",
+    "        System.out.println(\"Shape at (30, 30): \" + result);  // rect_2",
+    "        ",
+    "        canvas3.sendToBack(\"rect_2\");",
+    "        System.out.println(\"Sent rect_2 to back\");",
+    "        ",
+    "        result = canvas3.getShapeAt(30, 30);",
+    "        System.out.println(\"Shape at (30, 30) after sendToBack: \" + result);  // rect_1",
+    "        ",
+    "        System.out.println(\"\\n============================================================\");",
+    "        System.out.println(\"All Part 3 tests passed!\");",
+    "        System.out.println(\"============================================================\");",
+    "    }",
+    "}"
+  ],
+  "code_walkthrough": [
+    {
+      "lines": "1-19 (Python)",
+      "explanation": "Shape abstract base class with id, containsPoint, and moveTo abstract methods"
+    },
+    {
+      "lines": "21-45 (Python)",
+      "explanation": "Rectangle class with boundary-inclusive containsPoint using simple comparison"
+    },
+    {
+      "lines": "47-68 (Python)",
+      "explanation": "Circle class with distance-squared check for efficient containsPoint"
+    },
+    {
+      "lines": "70-90 (Python)",
+      "explanation": "Canvas __init__ with HashMap for lookup and List for z-ordering"
+    },
+    {
+      "lines": "92-140 (Python)",
+      "explanation": "create_rectangle, create_circle, get_shape_at, move_shape from Parts 1-2"
+    },
+    {
+      "lines": "142-158 (Python)",
+      "explanation": "NEW: delete_shape - removes from both z_order list and shapes HashMap"
+    },
+    {
+      "lines": "160-176 (Python)",
+      "explanation": "NEW: bring_to_front - removes from list, appends to end"
+    },
+    {
+      "lines": "178-194 (Python)",
+      "explanation": "NEW: send_to_back - removes from list, inserts at index 0"
+    }
+  ],
+  "complexity_analysis": {
+    "time": {
+      "new_methods": {
+        "deleteShape": {
+          "complexity": "O(n)",
+          "explanation": "List.remove(object) scans to find the object, then shifts elements"
+        },
+        "bringToFront": {
+          "complexity": "O(n)",
+          "explanation": "remove is O(n), append is O(1) amortized"
+        },
+        "sendToBack": {
+          "complexity": "O(n)",
+          "explanation": "remove is O(n), insert(0) shifts all elements O(n)"
+        }
+      },
+      "overall_change": "All new operations are O(n). Existing operations unchanged."
+    },
+    "space": {
+      "additional_space": "O(1)",
+      "explanation": "No new data structures added. Same shapes stored in same structures."
+    }
+  },
+  "dry_run": {
+    "example_input": "Create rect_1, rect_2, then bringToFront('rect_1'), query at (30,30)",
+    "steps": [
+      {
+        "step": 1,
+        "action": "createRectangle(0,0,50,50)",
+        "state": "shapes={rect_1}, zOrder=[rect_1]",
+        "explanation": "First rectangle created and added to both structures"
+      },
+      {
+        "step": 2,
+        "action": "createRectangle(25,25,50,50)",
+        "state": "shapes={rect_1,rect_2}, zOrder=[rect_1,rect_2]",
+        "explanation": "Second rectangle added, now on top"
+      },
+      {
+        "step": 3,
+        "action": "getShapeAt(30,30)",
+        "state": "unchanged",
+        "explanation": "Iterate from end: rect_2.containsPoint(30,30)=true, return 'rect_2'"
+      },
+      {
+        "step": 4,
+        "action": "bringToFront('rect_1')",
+        "state": "shapes={rect_1,rect_2}, zOrder=[rect_2,rect_1]",
+        "explanation": "rect_1 removed from index 0, appended to end"
+      },
+      {
+        "step": 5,
+        "action": "getShapeAt(30,30)",
+        "state": "unchanged",
+        "explanation": "Iterate from end: rect_1.containsPoint(30,30)=true, return 'rect_1'"
+      }
+    ],
+    "final_output": "rect_1"
+  },
+  "debugging_playbook": {
+    "fast_sanity_checks": [
+      "Create one shape, delete it, verify getShapeAt returns null",
+      "Create two shapes, bringToFront first one, verify it's now on top"
+    ],
+    "likely_bugs": [
+      "Forgetting to remove from HashMap when deleting",
+      "Using list.remove(index) instead of list.remove(object)",
+      "Not checking if shapeId exists before operating"
+    ],
+    "recommended_logs_or_asserts": [
+      "assert len(self._shapes) == len(self._z_order)",
+      "print(f'Z-order after operation: {[s.id for s in self._z_order]}')"
+    ],
+    "how_to_localize": "Print z-order list after each operation. Verify shape count matches in both structures."
+  },
+  "edge_cases": [
+    {
+      "case": "Delete non-existent shape",
+      "handling": "Return early without error",
+      "gotcha": "Don't throw exception, silently ignore"
+    },
+    {
+      "case": "bringToFront on already-front shape",
+      "handling": "Remove and re-add (no-op effectively)",
+      "gotcha": "Still works correctly, just slightly inefficient"
+    },
+    {
+      "case": "sendToBack on already-back shape",
+      "handling": "Remove and insert at 0 (no-op effectively)",
+      "gotcha": "Same as above"
+    },
+    {
+      "case": "Operations after delete",
+      "handling": "Shape no longer exists in HashMap",
+      "gotcha": "Ensure deleted shape can't be moved/deleted again"
+    },
+    {
+      "case": "Single shape on canvas",
+      "handling": "All z-order operations work",
+      "gotcha": "Shape is both front and back"
+    }
+  ],
+  "test_cases": [
+    {
+      "name": "Basic delete",
+      "input": "create rect_1, create rect_2, delete rect_2, getShapeAt(30,30)",
+      "expected": "rect_1",
+      "explanation": "After deleting top shape, bottom shape is now visible"
+    },
+    {
+      "name": "Bring to front",
+      "input": "create rect_1, create rect_2, bringToFront(rect_1), getShapeAt(30,30)",
+      "expected": "rect_1",
+      "explanation": "rect_1 moved to top, now visible in overlap area"
+    },
+    {
+      "name": "Send to back",
+      "input": "create rect_1, create rect_2, create rect_3, sendToBack(rect_3), getShapeAt overlap",
+      "expected": "rect_2",
+      "explanation": "rect_3 now behind rect_2 and rect_1"
+    },
+    {
+      "name": "Invalid shapeId",
+      "input": "deleteShape('nonexistent')",
+      "expected": "No error, no effect",
+      "explanation": "Invalid IDs silently ignored"
+    }
+  ],
+  "common_mistakes": [
+    {
+      "mistake": "Only removing from HashMap, forgetting z-order list",
+      "why_wrong": "Shape still in z-order means it will still be returned by getShapeAt",
+      "correct_approach": "Remove from BOTH data structures",
+      "code_example_wrong": "def delete_shape(self, shape_id):\\n    del self._shapes[shape_id]",
+      "code_example_correct": "def delete_shape(self, shape_id):\\n    shape = self._shapes[shape_id]\\n    self._z_order.remove(shape)\\n    del self._shapes[shape_id]"
+    },
+    {
+      "mistake": "Using list.remove(shape_id) instead of list.remove(shape)",
+      "why_wrong": "List contains Shape objects, not IDs",
+      "correct_approach": "Look up the Shape object first, then remove the object",
+      "code_example_wrong": "self._z_order.remove(shape_id)",
+      "code_example_correct": "shape = self._shapes[shape_id]\\nself._z_order.remove(shape)"
+    },
+    {
+      "mistake": "Not validating shapeId before operating",
+      "why_wrong": "KeyError or NullPointerException if ID doesn't exist",
+      "correct_approach": "Check if ID exists in HashMap first",
+      "code_example_wrong": "def bring_to_front(self, shape_id):\\n    shape = self._shapes[shape_id]  # Crashes if not found",
+      "code_example_correct": "def bring_to_front(self, shape_id):\\n    if shape_id not in self._shapes:\\n        return\\n    shape = self._shapes[shape_id]"
+    }
+  ],
+  "interview_tips": {
+    "how_to_present": "Start by saying: 'For Part 3, I need to add deletion and z-order control. The key insight is that z-order is just list position - shapes at the end are on top. All three new methods are just list manipulations.'",
+    "what_to_mention": [
+      "Z-order = list position is the core insight",
+      "All operations are O(n) due to list manipulation",
+      "No changes needed to existing methods",
+      "Invalid IDs handled gracefully"
+    ],
+    "time_allocation": "8-12 minutes: 2 min understand, 3 min explain approach, 5 min code, 2 min test",
+    "if_stuck": [
+      "Think about what z-order really means - which shape is drawn last",
+      "List operations: remove, append, insert(0)"
+    ]
+  },
+  "connection_to_next_part": "Part 4 might add: undo/redo functionality, grouping shapes, relative z-order changes (move up/down one level), or shape resizing. The current structure supports all of these - undo could use a command pattern, grouping could be a composite shape, relative moves just need to find current index.",
+  "communication_script": {
+    "transition_from_previous": "Great, Part 2 is working. For Part 3, I need to add three new methods: deleteShape, bringToFront, and sendToBack. The key insight is that z-order is just list position.",
+    "explaining_changes": "The key change is adding list manipulation for z-order. I'll use the existing HashMap for O(1) lookup, then modify the z-order list. Delete removes from both structures, bringToFront moves to end, sendToBack moves to beginning.",
+    "while_extending_code": [
+      "I'm adding delete_shape which needs to remove from both data structures...",
+      "For bring_to_front, I remove from current position and append to end..."
+    ],
+    "after_completing": "This handles Part 3. All new operations are O(n) due to list manipulation. The getShapeAt still works correctly because it iterates from end to beginning."
+  },
+  "time_milestones": {
+    "time_budget": "8-12 minutes for this part",
+    "by_2_min": "Understand the three new methods, identify that z-order = list position",
+    "by_5_min": "Explain approach, start coding delete_shape",
+    "by_10_min": "All three methods coded, testing with examples",
+    "warning_signs": "If still thinking about data structures at 4 min, just use the existing list. Don't overcomplicate."
+  },
+  "recovery_strategies": {
+    "if_part_builds_wrong": "If Part 2 has bugs, fix them first. Say: 'Let me quickly fix this issue from Part 2 before adding the new functionality.'",
+    "if_new_requirement_unclear": "Ask: 'Should bringToFront on an already-front shape be a no-op, or should it throw an error?'",
+    "if_running_behind": "Focus on delete_shape first - it's most important. bringToFront and sendToBack are similar patterns."
+  },
+  "signal_points": {
+    "wow_factors_for_followup": [
+      "Immediately recognizing z-order = list position",
+      "Mentioning that no changes to existing methods are needed",
+      "Discussing O(1) alternatives (LinkedList with node references)",
+      "Proactively handling edge cases",
+      "Noting that delete doesn't decrement counters (IDs never reused)"
+    ]
+  },
+  "pattern_recognition": {
+    "pattern": "Z-Order Stack Pattern",
+    "indicators": [
+      "'topmost shape wins'",
+      "'drawn last appears on top'",
+      "'bring to front/send to back'"
+    ],
+    "similar_problems": [
+      "Browser z-index management",
+      "Layer ordering in Photoshop",
+      "Window stacking in OS"
+    ],
+    "template": "Use a list where position = z-index. End = top, beginning = bottom. Operations are remove + insert at appropriate position."
+  },
+  "thinking_process": [
+    {
+      "step": 1,
+      "thought": "When I see z-order manipulation, I think about how shapes are stacked",
+      "why": "Z-order is fundamentally about drawing/visibility order"
+    },
+    {
+      "step": 2,
+      "thought": "List position naturally encodes order without extra fields",
+      "why": "No need for explicit z-index integers that need renumbering"
+    },
+    {
+      "step": 3,
+      "thought": "All operations follow remove-then-insert pattern",
+      "why": "Clean, consistent approach for delete/front/back"
+    }
+  ],
+  "interviewer_perspective": {
+    "what_they_evaluate": [
+      "Can you extend existing code without rewriting?",
+      "Do you understand z-order concept?",
+      "Can you maintain data structure invariants?"
+    ],
+    "bonus_points": [
+      "Mentioning alternatives like LinkedList for O(1) with references",
+      "Noting that IDs are never reused even after delete",
+      "Handling edge cases proactively"
+    ],
+    "red_flags": [
+      "Adding new data structures unnecessarily",
+      "Not removing from both HashMap and list for delete",
+      "Changing getShapeAt implementation"
+    ]
+  },
+  "ai_copilot_tips": {
+    "what_to_do": [
+      "Use AI for boilerplate docstrings",
+      "Let it suggest edge case test inputs"
+    ],
+    "what_not_to_do": [
+      "Don't let AI add unnecessary complexity",
+      "Understand why list.remove(object) works"
+    ]
+  },
+  "red_flags_to_avoid": {
+    "behavioral": [
+      "Spending too long on 'optimal' O(1) solutions",
+      "Not testing after implementation"
+    ],
+    "technical": [
+      "Modifying containsPoint or move_to methods",
+      "Adding z-index field to Shape class"
+    ],
+    "communication": [
+      "Not explaining why remove + append achieves bringToFront",
+      "Forgetting to mention complexity"
+    ]
+  },
+  "final_checklist": {
+    "before_saying_done": [
+      "Did I remove from BOTH structures in deleteShape?",
+      "Did I test bringToFront changes getShapeAt result?",
+      "Did I handle invalid shapeIds?",
+      "Are all three new methods working?"
+    ],
+    "quick_code_review": [
+      "Check for shape_id vs shape confusion",
+      "Verify list.remove uses object, not index",
+      "Type hints on new methods"
+    ]
+  },
+  "production_considerations": {
+    "what_i_would_add": [
+      "Logging for delete/z-order changes",
+      "Event emission for UI updates",
+      "Batch z-order operations"
+    ],
+    "why_not_in_interview": "Core algorithm is the focus; production concerns mentioned verbally",
+    "how_to_mention": "Say: 'In production, I'd emit events when z-order changes so the UI can re-render efficiently.'"
+  },
+  "generated_at": "2026-01-18T21:24:57.233836",
+  "_meta": {
+    "problem_id": "canvas_2d_drawing_app",
+    "part_number": 3,
+    "model": "claude-opus-4-5-20251101"
+  }
+}

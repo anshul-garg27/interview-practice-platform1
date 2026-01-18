@@ -1,0 +1,1187 @@
+{
+  "problem_title": "Employee Access Management System - Part 2: Role-Based Access Control (Groups)",
+  "part_number": 2,
+  "builds_on": "Part 1",
+  "difficulty": "medium",
+  "problem_understanding": {
+    "what_changes": "Part 2 introduces a **group-based permission inheritance model**. Instead of only managing direct employee-to-resource permissions, employees can now belong to groups, and groups can have their own permissions. An employee's **effective access** becomes the **union** of their direct permissions and all permissions inherited from their groups.",
+    "new_requirements": [
+      "Employees can be members of multiple groups simultaneously",
+      "Groups can have access granted to resources (same model as employees)",
+      "Effective access = Direct access \u222a All inherited group access",
+      "Revoking direct access does NOT affect inherited group access",
+      "Must support adding/removing employees from groups",
+      "Must support granting/revoking group-level access"
+    ],
+    "new_constraints": [
+      "Query-time computation for effective access (no caching required)",
+      "getEffectiveAccess must be O(g) where g = number of groups for employee",
+      "addEmployeeToGroup must be O(1)"
+    ],
+    "key_insight": "**Compute inheritance at query time, not at grant time**. This avoids complex cache invalidation when group memberships or group permissions change. The union operation is cheap enough to compute on-demand."
+  },
+  "requirements_coverage": {
+    "checklist": [
+      {
+        "requirement": "Employees can be members of multiple groups",
+        "how_met": "employeeGroups: Map<employeeId, Set<groupId>> allows multiple group memberships",
+        "gotchas": [
+          "Remember to handle the reverse mapping if needed for group member queries"
+        ]
+      },
+      {
+        "requirement": "Groups can have access to resources",
+        "how_met": "groupAccess: Map<groupId, Map<resourceId, Set<AccessType>>> mirrors employee access structure",
+        "gotchas": [
+          "Keep the same structure as employee access for consistency"
+        ]
+      },
+      {
+        "requirement": "Effective access is union of direct and inherited",
+        "how_met": "getEffectiveAccess iterates through employee's groups and unions all access sets",
+        "gotchas": [
+          "Don't forget to include direct access in the union",
+          "Use Set to automatically handle duplicates"
+        ]
+      },
+      {
+        "requirement": "Revoking from employee doesn't affect group access",
+        "how_met": "Direct access and group access are stored separately; revoke only modifies employeeAccess",
+        "gotchas": [
+          "Never modify groupAccess when revoking employee access"
+        ]
+      }
+    ],
+    "complexity_targets": [
+      {
+        "operation": "addEmployeeToGroup",
+        "target": "O(1)",
+        "achieved": "O(1)",
+        "why": "HashSet add operation"
+      },
+      {
+        "operation": "getEffectiveAccess",
+        "target": "O(g)",
+        "achieved": "O(g)",
+        "why": "Iterate through g groups, each lookup is O(1)"
+      },
+      {
+        "operation": "grantGroupAccess",
+        "target": "O(1)",
+        "achieved": "O(1)",
+        "why": "Nested HashMap/HashSet operations"
+      },
+      {
+        "operation": "getEffectiveResources",
+        "target": "O(g*r)",
+        "achieved": "O(g*r)",
+        "why": "Union of all resources across g groups"
+      }
+    ],
+    "non_goals": [
+      "Nested groups (groups containing other groups) - would be Part 3+",
+      "Access inheritance hierarchy (ADMIN implies READ/WRITE)",
+      "Caching of effective permissions",
+      "Time-based or conditional access rules"
+    ]
+  },
+  "assumptions": [
+    "Group IDs and Employee IDs are globally unique (no collision)",
+    "Groups are implicitly created when first referenced (lazy initialization)",
+    "Order of access types in returned list doesn't matter (we sort alphabetically for consistency)",
+    "Empty results return empty list, not null",
+    "No authentication/authorization layer on top (assume caller is authorized)"
+  ],
+  "tradeoffs": [
+    {
+      "decision": "Compute effective access at query time vs cache it",
+      "chosen": "Compute at query time",
+      "why": "Avoids complex cache invalidation when groups change; O(g) is acceptable for most use cases",
+      "alternative": "Cache effective access per employee",
+      "when_to_switch": "If read frequency >> write frequency and g is very large"
+    },
+    {
+      "decision": "Store both employeeGroups and groupMembers vs just one",
+      "chosen": "Store both (bidirectional mapping)",
+      "why": "O(1) lookups in both directions; getEffectiveAccess needs employee\u2192groups, but removing a group needs group\u2192employees",
+      "alternative": "Store only employeeGroups",
+      "when_to_switch": "If memory is extremely constrained and group deletion is rare"
+    },
+    {
+      "decision": "defaultdict/computeIfAbsent vs explicit checks",
+      "chosen": "Use defaultdict/computeIfAbsent for auto-initialization",
+      "why": "Cleaner code, fewer null checks, same performance",
+      "alternative": "Explicit initialization with checks",
+      "when_to_switch": "If you need to distinguish 'exists with no access' from 'never existed'"
+    }
+  ],
+  "extensibility_notes": {
+    "what_to_keep_stable": [
+      "Public method signatures from Part 1 (grant_access, revoke_access, etc.)",
+      "AccessType enum values",
+      "Core data structure patterns (Map of Map of Set)"
+    ],
+    "what_to_change": [
+      "Add groupAccess map (mirrors employeeAccess structure)",
+      "Add employeeGroups map for membership tracking",
+      "Add groupMembers reverse mapping",
+      "New methods for group operations"
+    ],
+    "interfaces_and_boundaries": "The effective access computation is isolated in getEffectiveAccess/getEffectiveResources. Part 3 (nested groups) would only need to modify how we collect groups - instead of just employee's direct groups, we'd traverse the group hierarchy.",
+    "invariants": [
+      "employeeGroups[E] contains G \u27fa groupMembers[G] contains E (bidirectional consistency)",
+      "Direct access and group access are always stored separately",
+      "Effective access is never stored, always computed"
+    ]
+  },
+  "visual_explanation": {
+    "before_after": "```\nBEFORE (Part 1 only):\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502         employeeAccess              \u2502\n\u2502  E1 \u2192 R1 \u2192 {READ, WRITE}           \u2502\n\u2502  E1 \u2192 R2 \u2192 {ADMIN}                 \u2502\n\u2502  E2 \u2192 R1 \u2192 {READ}                  \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n\nAFTER (Part 2 with Groups):\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502         employeeAccess              \u2502\n\u2502  E1 \u2192 R1 \u2192 {WRITE}                 \u2502\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502         groupAccess                 \u2502\n\u2502  G1 \u2192 R1 \u2192 {READ, ADMIN}           \u2502\n\u2502  G1 \u2192 R2 \u2192 {READ}                  \u2502\n\u2502  G2 \u2192 R3 \u2192 {WRITE}                 \u2502\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502         employeeGroups              \u2502\n\u2502  E1 \u2192 {G1, G2}                     \u2502\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502      EFFECTIVE ACCESS               \u2502\n\u2502  E1 on R1 = {WRITE} \u222a {READ,ADMIN} \u2502\n\u2502          = {READ, WRITE, ADMIN}    \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n```",
+    "algorithm_flow": "```\ngetEffectiveAccess(E1, R1):\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502 Step 1: Initialize empty result Set        \u2502\n\u2502         effective = {}                     \u2502\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502 Step 2: Add direct access                  \u2502\n\u2502         employeeAccess[E1][R1] = {WRITE}  \u2502\n\u2502         effective = {WRITE}               \u2502\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502 Step 3: Get employee's groups              \u2502\n\u2502         employeeGroups[E1] = {G1, G2}     \u2502\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502 Step 4: For each group, union access       \u2502\n\u2502         G1: groupAccess[G1][R1] = {READ}  \u2502\n\u2502         effective = {WRITE, READ}         \u2502\n\u2502         G2: groupAccess[G2][R1] = {}      \u2502\n\u2502         effective = {WRITE, READ}         \u2502\n\u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n\u2502 Step 5: Return sorted list                 \u2502\n\u2502         return [\"READ\", \"WRITE\"]          \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n```"
+  },
+  "approaches": [
+    {
+      "name": "Naive Extension - Eager Computation",
+      "description": "Whenever group membership or group access changes, recompute and store effective access for all affected employees. Store effectiveAccess[employee][resource] directly.",
+      "time_complexity": "O(1) for queries, O(n*r) for updates where n=employees in group, r=resources",
+      "space_complexity": "O(e*r) extra space for cached effective access",
+      "why_not_optimal": "Complex invalidation logic - when group membership changes, must update all affected employees. When group access changes, must update all group members. Race conditions in concurrent scenarios. Over-engineered for typical read/write ratios."
+    },
+    {
+      "name": "Optimal Approach - Lazy Query-Time Computation",
+      "description": "Store direct access and group access separately. Compute effective access only when queried by unioning direct access with all inherited group access.",
+      "time_complexity": "O(g) for getEffectiveAccess where g = groups employee belongs to",
+      "space_complexity": "O(e + g + m) where e=employees, g=groups, m=memberships",
+      "key_insight": "The union operation is O(g) which is typically small (employees usually belong to <10 groups). Computing on-demand avoids all cache invalidation complexity while maintaining acceptable performance."
+    }
+  ],
+  "optimal_solution": {
+    "explanation_md": "## Optimal Solution: Query-Time Inheritance Computation\n\n### Core Idea\nInstead of pre-computing and caching effective permissions (which requires complex invalidation), we **compute the union at query time**. This is the same pattern used by real-world systems like AWS IAM.\n\n### Data Structures\n\n1. **`employeeAccess`**: `Map<employeeId, Map<resourceId, Set<AccessType>>>`\n   - Same as Part 1, stores **direct** employee permissions\n\n2. **`groupAccess`**: `Map<groupId, Map<resourceId, Set<AccessType>>>`\n   - Mirrors employee access structure for **groups**\n\n3. **`employeeGroups`**: `Map<employeeId, Set<groupId>>`\n   - Tracks which groups each employee belongs to\n\n4. **`groupMembers`**: `Map<groupId, Set<employeeId>>`\n   - Reverse mapping for efficient group member lookups\n\n### Why This Works\n\n- **No cache invalidation needed**: Changes to groups or memberships don't require updating cached values\n- **O(g) is acceptable**: Most employees belong to few groups (<10)\n- **Clean separation**: Direct and inherited access are clearly separated\n- **Easy to extend**: Adding nested groups (Part 3) only requires modifying how we collect groups",
+    "data_structures": [
+      {
+        "structure": "HashMap<String, HashMap<String, HashSet<AccessType>>>",
+        "purpose": "Store employee and group access with O(1) lookups"
+      },
+      {
+        "structure": "HashMap<String, HashSet<String>>",
+        "purpose": "Bidirectional employee-group membership mapping"
+      },
+      {
+        "structure": "HashSet<AccessType>",
+        "purpose": "Automatic deduplication when unioning access types"
+      }
+    ],
+    "algorithm_steps": [
+      "Step 1: Initialize four data structures - employeeAccess, groupAccess, employeeGroups, groupMembers",
+      "Step 2: For addEmployeeToGroup(E, G): Add G to employeeGroups[E] and E to groupMembers[G]",
+      "Step 3: For grantGroupAccess(G, R, T): Add T to groupAccess[G][R] (same pattern as employee)",
+      "Step 4: For getEffectiveAccess(E, R): Start with direct access from employeeAccess[E][R]",
+      "Step 5: Iterate through all groups G in employeeGroups[E]",
+      "Step 6: For each group, union groupAccess[G][R] into the result set",
+      "Step 7: Convert result set to sorted list and return"
+    ]
+  },
+  "solution_python_lines": [
+    "from enum import Enum",
+    "from typing import Dict, Set, List",
+    "from collections import defaultdict",
+    "",
+    "",
+    "class AccessType(Enum):",
+    "    \"\"\"Enum representing different access levels.\"\"\"",
+    "    READ = \"READ\"",
+    "    WRITE = \"WRITE\"",
+    "    ADMIN = \"ADMIN\"",
+    "",
+    "",
+    "class AccessManager:",
+    "    \"\"\"",
+    "    Access Control Manager with Role-Based Access Control (RBAC).",
+    "    ",
+    "    Supports:",
+    "    - Direct employee-to-resource permissions (Part 1)",
+    "    - Group-based permission inheritance (Part 2)",
+    "    ",
+    "    Design Principle: Compute effective access at query time",
+    "    to avoid complex cache invalidation.",
+    "    \"\"\"",
+    "    ",
+    "    def __init__(self):",
+    "        \"\"\"Initialize the access manager with empty data structures.\"\"\"",
+    "        # Part 1: Direct employee access",
+    "        # employeeId -> resourceId -> Set[AccessType]",
+    "        self._employee_access: Dict[str, Dict[str, Set[AccessType]]] = \\",
+    "            defaultdict(lambda: defaultdict(set))",
+    "        ",
+    "        # Part 2: Group-related data structures",
+    "        # groupId -> resourceId -> Set[AccessType]",
+    "        self._group_access: Dict[str, Dict[str, Set[AccessType]]] = \\",
+    "            defaultdict(lambda: defaultdict(set))",
+    "        ",
+    "        # employeeId -> Set[groupId]",
+    "        self._employee_groups: Dict[str, Set[str]] = defaultdict(set)",
+    "        ",
+    "        # groupId -> Set[employeeId] (reverse mapping)",
+    "        self._group_members: Dict[str, Set[str]] = defaultdict(set)",
+    "    ",
+    "    # ==================== Part 1 Methods ====================",
+    "    ",
+    "    def grant_access(self, employee_id: str, resource_id: str, ",
+    "                     access_type: str) -> None:",
+    "        \"\"\"",
+    "        Grant direct access to an employee for a resource.",
+    "        ",
+    "        Time Complexity: O(1)",
+    "        \"\"\"",
+    "        self._employee_access[employee_id][resource_id].add(",
+    "            AccessType(access_type)",
+    "        )",
+    "    ",
+    "    def revoke_access(self, employee_id: str, resource_id: str,",
+    "                      access_type: str = None) -> None:",
+    "        \"\"\"",
+    "        Revoke direct access from an employee.",
+    "        ",
+    "        If access_type is None, revokes ALL access to the resource.",
+    "        Does NOT affect inherited group access.",
+    "        ",
+    "        Time Complexity: O(1)",
+    "        \"\"\"",
+    "        if employee_id not in self._employee_access:",
+    "            return",
+    "        ",
+    "        if resource_id not in self._employee_access[employee_id]:",
+    "            return",
+    "        ",
+    "        if access_type is None:",
+    "            # Revoke all access to this resource",
+    "            del self._employee_access[employee_id][resource_id]",
+    "        else:",
+    "            # Revoke specific access type",
+    "            self._employee_access[employee_id][resource_id].discard(",
+    "                AccessType(access_type)",
+    "            )",
+    "            # Clean up empty sets",
+    "            if not self._employee_access[employee_id][resource_id]:",
+    "                del self._employee_access[employee_id][resource_id]",
+    "    ",
+    "    def check_access(self, employee_id: str, resource_id: str,",
+    "                     access_type: str) -> bool:",
+    "        \"\"\"",
+    "        Check if employee has specific access (including inheritance).",
+    "        ",
+    "        Time Complexity: O(g) where g = number of groups",
+    "        \"\"\"",
+    "        effective = self.get_effective_access(employee_id, resource_id)",
+    "        return access_type in effective",
+    "    ",
+    "    def retrieve_access(self, employee_id: str, ",
+    "                        resource_id: str) -> List[str]:",
+    "        \"\"\"",
+    "        Get DIRECT access only (Part 1 behavior, no inheritance).",
+    "        ",
+    "        Time Complexity: O(1)",
+    "        \"\"\"",
+    "        if employee_id not in self._employee_access:",
+    "            return []",
+    "        if resource_id not in self._employee_access[employee_id]:",
+    "            return []",
+    "        return sorted([",
+    "            a.value for a in self._employee_access[employee_id][resource_id]",
+    "        ])",
+    "    ",
+    "    def retrieve_resources(self, employee_id: str) -> List[str]:",
+    "        \"\"\"",
+    "        Get DIRECT resources only (Part 1 behavior, no inheritance).",
+    "        ",
+    "        Time Complexity: O(r) where r = direct resources",
+    "        \"\"\"",
+    "        if employee_id not in self._employee_access:",
+    "            return []",
+    "        return sorted(self._employee_access[employee_id].keys())",
+    "    ",
+    "    # ==================== Part 2 Methods ====================",
+    "    ",
+    "    def add_employee_to_group(self, employee_id: str, ",
+    "                               group_id: str) -> None:",
+    "        \"\"\"",
+    "        Add an employee to a group.",
+    "        ",
+    "        The employee will inherit all access from this group.",
+    "        Maintains bidirectional mapping for efficient lookups.",
+    "        ",
+    "        Time Complexity: O(1)",
+    "        \"\"\"",
+    "        self._employee_groups[employee_id].add(group_id)",
+    "        self._group_members[group_id].add(employee_id)",
+    "    ",
+    "    def remove_employee_from_group(self, employee_id: str,",
+    "                                    group_id: str) -> None:",
+    "        \"\"\"",
+    "        Remove an employee from a group.",
+    "        ",
+    "        The employee will no longer inherit access from this group.",
+    "        ",
+    "        Time Complexity: O(1)",
+    "        \"\"\"",
+    "        self._employee_groups[employee_id].discard(group_id)",
+    "        self._group_members[group_id].discard(employee_id)",
+    "    ",
+    "    def grant_group_access(self, group_id: str, resource_id: str,",
+    "                           access_type: str) -> None:",
+    "        \"\"\"",
+    "        Grant access to a group for a resource.",
+    "        ",
+    "        All members of the group will inherit this access.",
+    "        ",
+    "        Time Complexity: O(1)",
+    "        \"\"\"",
+    "        self._group_access[group_id][resource_id].add(",
+    "            AccessType(access_type)",
+    "        )",
+    "    ",
+    "    def revoke_group_access(self, group_id: str, resource_id: str,",
+    "                            access_type: str = None) -> None:",
+    "        \"\"\"",
+    "        Revoke access from a group.",
+    "        ",
+    "        If access_type is None, revokes ALL group access to the resource.",
+    "        ",
+    "        Time Complexity: O(1)",
+    "        \"\"\"",
+    "        if group_id not in self._group_access:",
+    "            return",
+    "        ",
+    "        if resource_id not in self._group_access[group_id]:",
+    "            return",
+    "        ",
+    "        if access_type is None:",
+    "            del self._group_access[group_id][resource_id]",
+    "        else:",
+    "            self._group_access[group_id][resource_id].discard(",
+    "                AccessType(access_type)",
+    "            )",
+    "            if not self._group_access[group_id][resource_id]:",
+    "                del self._group_access[group_id][resource_id]",
+    "    ",
+    "    def get_effective_access(self, employee_id: str,",
+    "                              resource_id: str) -> List[str]:",
+    "        \"\"\"",
+    "        Get effective access for an employee on a resource.",
+    "        ",
+    "        This is the UNION of:",
+    "        - Direct access granted to the employee",
+    "        - Inherited access from all groups the employee belongs to",
+    "        ",
+    "        Time Complexity: O(g) where g = number of groups for employee",
+    "        Space Complexity: O(1) - at most 3 access types",
+    "        ",
+    "        Example:",
+    "            E1 has direct WRITE on R1",
+    "            E1 is member of G1 which has READ on R1",
+    "            E1 is member of G2 which has ADMIN on R1",
+    "            -> getEffectiveAccess(E1, R1) = [ADMIN, READ, WRITE]",
+    "        \"\"\"",
+    "        effective_access: Set[AccessType] = set()",
+    "        ",
+    "        # Add direct access",
+    "        if (employee_id in self._employee_access and ",
+    "            resource_id in self._employee_access[employee_id]):",
+    "            effective_access.update(",
+    "                self._employee_access[employee_id][resource_id]",
+    "            )",
+    "        ",
+    "        # Add inherited access from all groups",
+    "        for group_id in self._employee_groups.get(employee_id, set()):",
+    "            if (group_id in self._group_access and",
+    "                resource_id in self._group_access[group_id]):",
+    "                effective_access.update(",
+    "                    self._group_access[group_id][resource_id]",
+    "                )",
+    "        ",
+    "        return sorted([a.value for a in effective_access])",
+    "    ",
+    "    def get_effective_resources(self, employee_id: str) -> List[str]:",
+    "        \"\"\"",
+    "        Get all resources an employee has access to.",
+    "        ",
+    "        This includes:",
+    "        - Resources with direct access",
+    "        - Resources inherited from all groups",
+    "        ",
+    "        Time Complexity: O(g * r) where g = groups, r = resources per group",
+    "        \"\"\"",
+    "        effective_resources: Set[str] = set()",
+    "        ",
+    "        # Add direct resources",
+    "        if employee_id in self._employee_access:",
+    "            effective_resources.update(",
+    "                self._employee_access[employee_id].keys()",
+    "            )",
+    "        ",
+    "        # Add inherited resources from all groups",
+    "        for group_id in self._employee_groups.get(employee_id, set()):",
+    "            if group_id in self._group_access:",
+    "                effective_resources.update(",
+    "                    self._group_access[group_id].keys()",
+    "                )",
+    "        ",
+    "        return sorted(list(effective_resources))",
+    "    ",
+    "    def get_group_members(self, group_id: str) -> List[str]:",
+    "        \"\"\"Get all members of a group. Utility method.\"\"\"",
+    "        return sorted(list(self._group_members.get(group_id, set())))",
+    "    ",
+    "    def get_employee_groups(self, employee_id: str) -> List[str]:",
+    "        \"\"\"Get all groups an employee belongs to. Utility method.\"\"\"",
+    "        return sorted(list(self._employee_groups.get(employee_id, set())))",
+    "",
+    "",
+    "def run_demo():",
+    "    \"\"\"Demonstrate Part 2 functionality.\"\"\"",
+    "    print(\"\\n\" + \"=\" * 60)",
+    "    print(\"Part 2: Role-Based Access Control Demo\")",
+    "    print(\"=\" * 60)",
+    "    ",
+    "    manager = AccessManager()",
+    "    ",
+    "    # Example 1: Basic group inheritance",
+    "    print(\"\\n--- Example 1: Basic Group Inheritance ---\")",
+    "    print(\"Setting up: G1 has READ on R1, E1 joins G1, E1 gets direct WRITE on R1\")",
+    "    ",
+    "    manager.grant_group_access(\"G1\", \"R1\", \"READ\")",
+    "    manager.add_employee_to_group(\"E1\", \"G1\")",
+    "    manager.grant_access(\"E1\", \"R1\", \"WRITE\")",
+    "    ",
+    "    result = manager.get_effective_access(\"E1\", \"R1\")",
+    "    print(f\"E1's effective access on R1: {result}\")",
+    "    print(\"Expected: ['READ', 'WRITE'] (direct WRITE + inherited READ)\")",
+    "    ",
+    "    # Example 2: Multiple groups",
+    "    print(\"\\n--- Example 2: Multiple Groups ---\")",
+    "    print(\"Adding: G2 has ADMIN on R1, E1 joins G2\")",
+    "    ",
+    "    manager.grant_group_access(\"G2\", \"R1\", \"ADMIN\")",
+    "    manager.add_employee_to_group(\"E1\", \"G2\")",
+    "    ",
+    "    result = manager.get_effective_access(\"E1\", \"R1\")",
+    "    print(f\"E1's effective access on R1: {result}\")",
+    "    print(\"Expected: ['ADMIN', 'READ', 'WRITE'] (from direct + G1 + G2)\")",
+    "    ",
+    "    # Example 3: Get effective resources",
+    "    print(\"\\n--- Example 3: Effective Resources ---\")",
+    "    print(\"Adding: G1 has READ on R2, E1 has direct WRITE on R3\")",
+    "    ",
+    "    manager.grant_group_access(\"G1\", \"R2\", \"READ\")",
+    "    manager.grant_access(\"E1\", \"R3\", \"WRITE\")",
+    "    ",
+    "    resources = manager.get_effective_resources(\"E1\")",
+    "    print(f\"E1's effective resources: {resources}\")",
+    "    print(\"Expected: ['R1', 'R2', 'R3']\")",
+    "    ",
+    "    # Example 4: Revoke direct access - group access persists",
+    "    print(\"\\n--- Example 4: Revoke Direct Access ---\")",
+    "    print(\"Revoking E1's direct WRITE on R1...\")",
+    "    ",
+    "    manager.revoke_access(\"E1\", \"R1\", \"WRITE\")",
+    "    ",
+    "    result = manager.get_effective_access(\"E1\", \"R1\")",
+    "    print(f\"E1's effective access on R1: {result}\")",
+    "    print(\"Expected: ['ADMIN', 'READ'] (group access persists!)\")",
+    "    ",
+    "    # Example 5: Remove from group",
+    "    print(\"\\n--- Example 5: Remove from Group ---\")",
+    "    print(\"Removing E1 from G2...\")",
+    "    ",
+    "    manager.remove_employee_from_group(\"E1\", \"G2\")",
+    "    ",
+    "    result = manager.get_effective_access(\"E1\", \"R1\")",
+    "    print(f\"E1's effective access on R1: {result}\")",
+    "    print(\"Expected: ['READ'] (only from G1 now)\")",
+    "    ",
+    "    # Example 6: Edge case - no access",
+    "    print(\"\\n--- Example 6: Edge Cases ---\")",
+    "    print(f\"Unknown employee E99 on R1: {manager.get_effective_access('E99', 'R1')}\")",
+    "    print(f\"E1 on unknown resource R99: {manager.get_effective_access('E1', 'R99')}\")",
+    "    ",
+    "    print(\"\\n\" + \"=\" * 60)",
+    "    print(\"Demo Complete!\")",
+    "    print(\"=\" * 60)",
+    "",
+    "",
+    "if __name__ == \"__main__\":",
+    "    run_demo()"
+  ],
+  "solution_java_lines": [
+    "import java.util.*;",
+    "",
+    "/**",
+    " * Enum representing different access levels.",
+    " */",
+    "enum AccessType {",
+    "    READ(\"READ\"),",
+    "    WRITE(\"WRITE\"),",
+    "    ADMIN(\"ADMIN\");",
+    "    ",
+    "    private final String value;",
+    "    ",
+    "    AccessType(String value) {",
+    "        this.value = value;",
+    "    }",
+    "    ",
+    "    public String getValue() {",
+    "        return value;",
+    "    }",
+    "    ",
+    "    public static AccessType fromString(String text) {",
+    "        for (AccessType type : AccessType.values()) {",
+    "            if (type.value.equalsIgnoreCase(text)) {",
+    "                return type;",
+    "            }",
+    "        }",
+    "        throw new IllegalArgumentException(\"Unknown access type: \" + text);",
+    "    }",
+    "}",
+    "",
+    "/**",
+    " * Access Control Manager with Role-Based Access Control (RBAC).",
+    " * ",
+    " * Supports:",
+    " * - Direct employee-to-resource permissions (Part 1)",
+    " * - Group-based permission inheritance (Part 2)",
+    " * ",
+    " * Design: Compute effective access at query time to avoid cache invalidation.",
+    " */",
+    "public class AccessManager {",
+    "    // Part 1: Direct employee access - employeeId -> resourceId -> Set<AccessType>",
+    "    private Map<String, Map<String, Set<AccessType>>> employeeAccess;",
+    "    ",
+    "    // Part 2: Group access - groupId -> resourceId -> Set<AccessType>",
+    "    private Map<String, Map<String, Set<AccessType>>> groupAccess;",
+    "    ",
+    "    // Employee to groups mapping",
+    "    private Map<String, Set<String>> employeeGroups;",
+    "    ",
+    "    // Group to employees mapping (reverse)",
+    "    private Map<String, Set<String>> groupMembers;",
+    "    ",
+    "    public AccessManager() {",
+    "        employeeAccess = new HashMap<>();",
+    "        groupAccess = new HashMap<>();",
+    "        employeeGroups = new HashMap<>();",
+    "        groupMembers = new HashMap<>();",
+    "    }",
+    "    ",
+    "    // ==================== Part 1 Methods ====================",
+    "    ",
+    "    /**",
+    "     * Grant direct access to an employee for a resource.",
+    "     * Time Complexity: O(1)",
+    "     */",
+    "    public void grantAccess(String employeeId, String resourceId, String accessType) {",
+    "        employeeAccess",
+    "            .computeIfAbsent(employeeId, k -> new HashMap<>())",
+    "            .computeIfAbsent(resourceId, k -> new HashSet<>())",
+    "            .add(AccessType.fromString(accessType));",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Revoke direct access from an employee.",
+    "     * If accessType is null, revokes ALL access to the resource.",
+    "     * Does NOT affect inherited group access.",
+    "     */",
+    "    public void revokeAccess(String employeeId, String resourceId, String accessType) {",
+    "        if (!employeeAccess.containsKey(employeeId)) return;",
+    "        Map<String, Set<AccessType>> resources = employeeAccess.get(employeeId);",
+    "        if (!resources.containsKey(resourceId)) return;",
+    "        ",
+    "        if (accessType == null) {",
+    "            resources.remove(resourceId);",
+    "        } else {",
+    "            Set<AccessType> access = resources.get(resourceId);",
+    "            access.remove(AccessType.fromString(accessType));",
+    "            if (access.isEmpty()) {",
+    "                resources.remove(resourceId);",
+    "            }",
+    "        }",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Check if employee has specific access (including inheritance).",
+    "     */",
+    "    public boolean checkAccess(String employeeId, String resourceId, String accessType) {",
+    "        List<String> effective = getEffectiveAccess(employeeId, resourceId);",
+    "        return effective.contains(accessType);",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Get DIRECT access only (Part 1 behavior).",
+    "     */",
+    "    public List<String> retrieveAccess(String employeeId, String resourceId) {",
+    "        if (!employeeAccess.containsKey(employeeId)) return new ArrayList<>();",
+    "        Map<String, Set<AccessType>> resources = employeeAccess.get(employeeId);",
+    "        if (!resources.containsKey(resourceId)) return new ArrayList<>();",
+    "        ",
+    "        List<String> result = new ArrayList<>();",
+    "        for (AccessType type : resources.get(resourceId)) {",
+    "            result.add(type.getValue());",
+    "        }",
+    "        Collections.sort(result);",
+    "        return result;",
+    "    }",
+    "    ",
+    "    // ==================== Part 2 Methods ====================",
+    "    ",
+    "    /**",
+    "     * Add an employee to a group.",
+    "     * The employee will inherit all access from this group.",
+    "     * Time Complexity: O(1)",
+    "     */",
+    "    public void addEmployeeToGroup(String employeeId, String groupId) {",
+    "        employeeGroups.computeIfAbsent(employeeId, k -> new HashSet<>()).add(groupId);",
+    "        groupMembers.computeIfAbsent(groupId, k -> new HashSet<>()).add(employeeId);",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Remove an employee from a group.",
+    "     * Time Complexity: O(1)",
+    "     */",
+    "    public void removeEmployeeFromGroup(String employeeId, String groupId) {",
+    "        if (employeeGroups.containsKey(employeeId)) {",
+    "            employeeGroups.get(employeeId).remove(groupId);",
+    "        }",
+    "        if (groupMembers.containsKey(groupId)) {",
+    "            groupMembers.get(groupId).remove(employeeId);",
+    "        }",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Grant access to a group for a resource.",
+    "     * All members inherit this access.",
+    "     * Time Complexity: O(1)",
+    "     */",
+    "    public void grantGroupAccess(String groupId, String resourceId, String accessType) {",
+    "        groupAccess",
+    "            .computeIfAbsent(groupId, k -> new HashMap<>())",
+    "            .computeIfAbsent(resourceId, k -> new HashSet<>())",
+    "            .add(AccessType.fromString(accessType));",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Revoke access from a group.",
+    "     * Time Complexity: O(1)",
+    "     */",
+    "    public void revokeGroupAccess(String groupId, String resourceId, String accessType) {",
+    "        if (!groupAccess.containsKey(groupId)) return;",
+    "        Map<String, Set<AccessType>> resources = groupAccess.get(groupId);",
+    "        if (!resources.containsKey(resourceId)) return;",
+    "        ",
+    "        if (accessType == null) {",
+    "            resources.remove(resourceId);",
+    "        } else {",
+    "            Set<AccessType> access = resources.get(resourceId);",
+    "            access.remove(AccessType.fromString(accessType));",
+    "            if (access.isEmpty()) {",
+    "                resources.remove(resourceId);",
+    "            }",
+    "        }",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Get effective access for an employee on a resource.",
+    "     * Returns UNION of direct access and inherited group access.",
+    "     * ",
+    "     * Time Complexity: O(g) where g = number of groups for employee",
+    "     */",
+    "    public List<String> getEffectiveAccess(String employeeId, String resourceId) {",
+    "        Set<AccessType> effective = new HashSet<>();",
+    "        ",
+    "        // Add direct access",
+    "        if (employeeAccess.containsKey(employeeId)) {",
+    "            Map<String, Set<AccessType>> resources = employeeAccess.get(employeeId);",
+    "            if (resources.containsKey(resourceId)) {",
+    "                effective.addAll(resources.get(resourceId));",
+    "            }",
+    "        }",
+    "        ",
+    "        // Add inherited access from all groups",
+    "        Set<String> groups = employeeGroups.getOrDefault(employeeId, ",
+    "                                                          Collections.emptySet());",
+    "        for (String groupId : groups) {",
+    "            if (groupAccess.containsKey(groupId)) {",
+    "                Map<String, Set<AccessType>> resources = groupAccess.get(groupId);",
+    "                if (resources.containsKey(resourceId)) {",
+    "                    effective.addAll(resources.get(resourceId));",
+    "                }",
+    "            }",
+    "        }",
+    "        ",
+    "        List<String> result = new ArrayList<>();",
+    "        for (AccessType type : effective) {",
+    "            result.add(type.getValue());",
+    "        }",
+    "        Collections.sort(result);",
+    "        return result;",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Get all resources an employee has access to (direct + inherited).",
+    "     * Time Complexity: O(g * r)",
+    "     */",
+    "    public List<String> getEffectiveResources(String employeeId) {",
+    "        Set<String> resources = new HashSet<>();",
+    "        ",
+    "        // Direct resources",
+    "        if (employeeAccess.containsKey(employeeId)) {",
+    "            resources.addAll(employeeAccess.get(employeeId).keySet());",
+    "        }",
+    "        ",
+    "        // Inherited resources from groups",
+    "        Set<String> groups = employeeGroups.getOrDefault(employeeId,",
+    "                                                          Collections.emptySet());",
+    "        for (String groupId : groups) {",
+    "            if (groupAccess.containsKey(groupId)) {",
+    "                resources.addAll(groupAccess.get(groupId).keySet());",
+    "            }",
+    "        }",
+    "        ",
+    "        List<String> result = new ArrayList<>(resources);",
+    "        Collections.sort(result);",
+    "        return result;",
+    "    }",
+    "    ",
+    "    // ==================== Demo ====================",
+    "    ",
+    "    public static void main(String[] args) {",
+    "        System.out.println(\"============================================\");",
+    "        System.out.println(\"Part 2: Role-Based Access Control Demo\");",
+    "        System.out.println(\"============================================\");",
+    "        ",
+    "        AccessManager manager = new AccessManager();",
+    "        ",
+    "        // Example 1: Basic group inheritance",
+    "        System.out.println(\"\\n--- Example 1: Basic Group Inheritance ---\");",
+    "        manager.grantGroupAccess(\"G1\", \"R1\", \"READ\");",
+    "        manager.addEmployeeToGroup(\"E1\", \"G1\");",
+    "        manager.grantAccess(\"E1\", \"R1\", \"WRITE\");",
+    "        ",
+    "        System.out.println(\"E1's effective access on R1: \" + ",
+    "                           manager.getEffectiveAccess(\"E1\", \"R1\"));",
+    "        System.out.println(\"Expected: [READ, WRITE]\");",
+    "        ",
+    "        // Example 2: Multiple groups",
+    "        System.out.println(\"\\n--- Example 2: Multiple Groups ---\");",
+    "        manager.grantGroupAccess(\"G2\", \"R1\", \"ADMIN\");",
+    "        manager.addEmployeeToGroup(\"E1\", \"G2\");",
+    "        ",
+    "        System.out.println(\"E1's effective access on R1: \" + ",
+    "                           manager.getEffectiveAccess(\"E1\", \"R1\"));",
+    "        System.out.println(\"Expected: [ADMIN, READ, WRITE]\");",
+    "        ",
+    "        // Example 3: Effective resources",
+    "        System.out.println(\"\\n--- Example 3: Effective Resources ---\");",
+    "        manager.grantGroupAccess(\"G1\", \"R2\", \"READ\");",
+    "        manager.grantAccess(\"E1\", \"R3\", \"WRITE\");",
+    "        ",
+    "        System.out.println(\"E1's effective resources: \" + ",
+    "                           manager.getEffectiveResources(\"E1\"));",
+    "        System.out.println(\"Expected: [R1, R2, R3]\");",
+    "        ",
+    "        System.out.println(\"\\n============================================\");",
+    "        System.out.println(\"Demo Complete!\");",
+    "    }",
+    "}"
+  ],
+  "code_walkthrough": [
+    {
+      "lines": "1-10",
+      "explanation": "Imports and AccessType enum - same as Part 1, provides type safety for access levels"
+    },
+    {
+      "lines": "24-37",
+      "explanation": "Data structure initialization - adds groupAccess, employeeGroups, and groupMembers to existing employeeAccess"
+    },
+    {
+      "lines": "39-70",
+      "explanation": "Part 1 methods unchanged - grant_access, revoke_access work only on direct employeeAccess"
+    },
+    {
+      "lines": "100-110",
+      "explanation": "addEmployeeToGroup - O(1) bidirectional mapping update using HashSet add"
+    },
+    {
+      "lines": "112-118",
+      "explanation": "removeEmployeeFromGroup - O(1) bidirectional mapping update using HashSet discard"
+    },
+    {
+      "lines": "120-130",
+      "explanation": "grantGroupAccess - mirrors grant_access but operates on groupAccess map"
+    },
+    {
+      "lines": "145-175",
+      "explanation": "getEffectiveAccess - THE KEY METHOD: unions direct access with all inherited group access, O(g) complexity"
+    },
+    {
+      "lines": "177-195",
+      "explanation": "getEffectiveResources - unions resource keys from direct and all group access maps"
+    }
+  ],
+  "complexity_analysis": {
+    "time": {
+      "new_methods": {
+        "addEmployeeToGroup": {
+          "complexity": "O(1)",
+          "explanation": "Two HashSet add operations"
+        },
+        "removeEmployeeFromGroup": {
+          "complexity": "O(1)",
+          "explanation": "Two HashSet discard operations"
+        },
+        "grantGroupAccess": {
+          "complexity": "O(1)",
+          "explanation": "Nested HashMap/HashSet operations with auto-initialization"
+        },
+        "revokeGroupAccess": {
+          "complexity": "O(1)",
+          "explanation": "HashSet remove operation"
+        },
+        "getEffectiveAccess": {
+          "complexity": "O(g)",
+          "explanation": "Iterate through g groups, each with O(1) lookups. g is typically small (<10)"
+        },
+        "getEffectiveResources": {
+          "complexity": "O(g * r)",
+          "explanation": "For each of g groups, iterate through r resources"
+        }
+      },
+      "overall_change": "Part 1 methods remain O(1). New query methods are O(g) or O(g*r), but g is typically small."
+    },
+    "space": {
+      "additional_space": "O(g + m + gr) where g=groups, m=memberships, gr=group-resource pairs",
+      "explanation": "Three new maps: groupAccess (mirrors employeeAccess), employeeGroups, groupMembers. All use HashSet/HashMap for O(1) operations."
+    }
+  },
+  "dry_run": {
+    "example_input": "Example 1 from problem: grant_group_access(G1, R1, READ), add_employee_to_group(E1, G1), grant_access(E1, R1, WRITE), get_effective_access(E1, R1)",
+    "steps": [
+      {
+        "step": 1,
+        "action": "grantGroupAccess(G1, R1, READ)",
+        "state": "groupAccess = {G1: {R1: {READ}}}",
+        "explanation": "Create group access entry"
+      },
+      {
+        "step": 2,
+        "action": "addEmployeeToGroup(E1, G1)",
+        "state": "employeeGroups = {E1: {G1}}, groupMembers = {G1: {E1}}",
+        "explanation": "Bidirectional mapping created"
+      },
+      {
+        "step": 3,
+        "action": "grantAccess(E1, R1, WRITE)",
+        "state": "employeeAccess = {E1: {R1: {WRITE}}}",
+        "explanation": "Direct access granted"
+      },
+      {
+        "step": 4,
+        "action": "getEffectiveAccess(E1, R1)",
+        "state": "effective = {}",
+        "explanation": "Initialize empty result set"
+      },
+      {
+        "step": 5,
+        "action": "Add direct access",
+        "state": "effective = {WRITE}",
+        "explanation": "Add from employeeAccess[E1][R1]"
+      },
+      {
+        "step": 6,
+        "action": "Loop through groups: G1",
+        "state": "effective = {WRITE, READ}",
+        "explanation": "Union with groupAccess[G1][R1]"
+      },
+      {
+        "step": 7,
+        "action": "Sort and return",
+        "state": "return ['READ', 'WRITE']",
+        "explanation": "Final sorted list"
+      }
+    ],
+    "final_output": "['READ', 'WRITE']"
+  },
+  "debugging_playbook": {
+    "fast_sanity_checks": [
+      "Empty employee/resource returns empty list, not null or error",
+      "Single direct access without groups works (Part 1 compatibility)",
+      "Employee in group but group has no access to resource returns only direct access"
+    ],
+    "likely_bugs": [
+      "Forgetting to include direct access in getEffectiveAccess",
+      "Not handling case when employee has no groups",
+      "Modifying groupAccess when revoking employee access",
+      "Not maintaining bidirectional consistency between employeeGroups and groupMembers"
+    ],
+    "recommended_logs_or_asserts": [
+      "assert len(employeeGroups[E]) == count of E in all groupMembers values",
+      "log effective access components: 'direct={}, inherited={}'",
+      "log state after each operation during debugging"
+    ],
+    "how_to_localize": "1. Print employee's direct access. 2. Print employee's groups. 3. For each group, print group's access. 4. Verify union is computed correctly."
+  },
+  "edge_cases": [
+    {
+      "case": "Employee with no groups",
+      "handling": "getEffectiveAccess returns only direct access",
+      "gotcha": "Don't crash on empty employeeGroups[E]"
+    },
+    {
+      "case": "Employee in group, group has no access to resource",
+      "handling": "That group contributes nothing to the union",
+      "gotcha": "Don't crash on missing groupAccess[G][R]"
+    },
+    {
+      "case": "Unknown employee ID",
+      "handling": "Return empty list",
+      "gotcha": "Don't throw KeyError/NullPointerException"
+    },
+    {
+      "case": "Same access type from direct and group",
+      "handling": "Set automatically deduplicates",
+      "gotcha": "Don't manually check for duplicates"
+    },
+    {
+      "case": "Remove employee from group they're not in",
+      "handling": "Silently no-op using discard()",
+      "gotcha": "Don't use remove() which throws on missing"
+    },
+    {
+      "case": "Grant access to empty group",
+      "handling": "Group access stored, effective when members added later",
+      "gotcha": "Groups can exist with access before having members"
+    }
+  ],
+  "test_cases": [
+    {
+      "name": "Basic inheritance",
+      "input": "grant_group_access(G1, R1, READ), add_employee_to_group(E1, G1), get_effective_access(E1, R1)",
+      "expected": "['READ']",
+      "explanation": "E1 inherits READ from G1"
+    },
+    {
+      "name": "Direct + inherited",
+      "input": "grant_group_access(G1, R1, READ), add_employee_to_group(E1, G1), grant_access(E1, R1, WRITE), get_effective_access(E1, R1)",
+      "expected": "['READ', 'WRITE']",
+      "explanation": "Union of direct WRITE and inherited READ"
+    },
+    {
+      "name": "Multiple groups same resource",
+      "input": "grant_group_access(G1, R1, READ), grant_group_access(G2, R1, ADMIN), add_employee_to_group(E1, G1), add_employee_to_group(E1, G2), get_effective_access(E1, R1)",
+      "expected": "['ADMIN', 'READ']",
+      "explanation": "Union from both groups"
+    },
+    {
+      "name": "Revoke direct keeps inherited",
+      "input": "grant_group_access(G1, R1, READ), add_employee_to_group(E1, G1), grant_access(E1, R1, WRITE), revoke_access(E1, R1, WRITE), get_effective_access(E1, R1)",
+      "expected": "['READ']",
+      "explanation": "Direct WRITE revoked, inherited READ persists"
+    },
+    {
+      "name": "Remove from group",
+      "input": "grant_group_access(G1, R1, READ), add_employee_to_group(E1, G1), remove_employee_from_group(E1, G1), get_effective_access(E1, R1)",
+      "expected": "[]",
+      "explanation": "No longer inherits from G1"
+    }
+  ],
+  "common_mistakes": [
+    {
+      "mistake": "Forgetting to include direct access in getEffectiveAccess",
+      "why_wrong": "Effective access must be UNION of direct AND inherited, not just inherited",
+      "correct_approach": "Always check employeeAccess first, then add group access",
+      "code_example_wrong": "# Wrong: only checks group access\\nfor g in groups: effective.update(groupAccess[g][r])",
+      "code_example_correct": "# Correct: include direct access\\neffective.update(employeeAccess[e][r])\\nfor g in groups: effective.update(groupAccess[g][r])"
+    },
+    {
+      "mistake": "Not handling missing keys gracefully",
+      "why_wrong": "Causes KeyError/NullPointerException when employee has no groups or group has no access",
+      "correct_approach": "Use get() with default or containsKey() checks",
+      "code_example_wrong": "for g in employeeGroups[e]:  # Crashes if e not in map",
+      "code_example_correct": "for g in employeeGroups.get(e, set()):  # Safe, returns empty set"
+    },
+    {
+      "mistake": "Modifying group access when revoking employee access",
+      "why_wrong": "Violates requirement that employee revoke doesn't affect group",
+      "correct_approach": "Only modify employeeAccess in revoke_access, only modify groupAccess in revoke_group_access",
+      "code_example_wrong": "def revoke_access(e, r, t):\\n  del groupAccess[g][r]  # WRONG!",
+      "code_example_correct": "def revoke_access(e, r, t):\\n  del employeeAccess[e][r]  # Correct"
+    },
+    {
+      "mistake": "Not maintaining bidirectional consistency",
+      "why_wrong": "If employeeGroups and groupMembers get out of sync, queries return wrong results",
+      "correct_approach": "Always update both maps in add/remove operations",
+      "code_example_wrong": "def add_to_group(e, g):\\n  employeeGroups[e].add(g)  # Missing reverse!",
+      "code_example_correct": "def add_to_group(e, g):\\n  employeeGroups[e].add(g)\\n  groupMembers[g].add(e)"
+    }
+  ],
+  "interview_tips": {
+    "how_to_present": "Start by explaining the key insight: 'For Part 2, I need to track group memberships and group access separately. The crucial decision is computing effective access at query time rather than caching it, which avoids complex invalidation logic.'",
+    "what_to_mention": [
+      "Why query-time computation is better than caching for this use case",
+      "The bidirectional mapping for group membership",
+      "How the union operation naturally handles duplicates",
+      "Time complexity for the new methods"
+    ],
+    "time_allocation": "10-12 minutes: 2 min understand requirements, 3 min explain approach, 5 min implement, 2 min test",
+    "if_stuck": [
+      "Think about what data structures you need: 'I need to know which groups an employee belongs to'",
+      "Think about the union: 'Effective = direct + inherited, so I need to iterate through groups'",
+      "Ask: 'Should I cache effective access or compute it on demand?'"
+    ]
+  },
+  "connection_to_next_part": "Part 3 might add **nested groups** (groups containing other groups). The current design handles this well: getEffectiveAccess would need to recursively/iteratively collect all ancestor groups instead of just direct groups. Consider using BFS/DFS to traverse group hierarchy. The same query-time computation approach avoids cache invalidation for nested changes.",
+  "communication_script": {
+    "transition_from_previous": "Great, Part 1 is working. For Part 2, I need to add group-based inheritance. The key change is that employees can belong to groups, and their effective access becomes the union of direct access and all inherited group access.",
+    "explaining_changes": "I'll add three new data structures: groupAccess (same structure as employeeAccess), employeeGroups (which groups each employee belongs to), and groupMembers (reverse mapping). The crucial design decision is computing effective access at query time rather than caching it.",
+    "while_extending_code": [
+      "I'm adding the group access map - same structure as employee access for consistency",
+      "Adding bidirectional employee-group mapping for efficient lookups in both directions",
+      "The getEffectiveAccess method iterates through employee's groups and unions all access - this is O(g) where g is typically small"
+    ],
+    "after_completing": "Part 2 is now complete. Group operations are O(1), and getEffectiveAccess is O(g) where g is the number of groups. The query-time computation avoids cache invalidation complexity. Ready for Part 3?"
+  },
+  "time_milestones": {
+    "time_budget": "10-12 minutes for this part",
+    "by_2_min": "Understand new requirements, identify the three new data structures needed",
+    "by_5_min": "Explain query-time computation approach, start implementing group methods",
+    "by_10_min": "Implementation complete, testing with examples",
+    "warning_signs": "If still designing at 5 min, simplify - just get the core getEffectiveAccess working first"
+  },
+  "recovery_strategies": {
+    "if_part_builds_wrong": "If Part 1 has bugs affecting this, fix them first. Say: 'I noticed an issue in Part 1 that affects this - let me fix it quickly.'",
+    "if_new_requirement_unclear": "Ask: 'Just to confirm - when I revoke direct access, the inherited group access should still work, correct?'",
+    "if_running_behind": "Focus on getEffectiveAccess first - it's the most important new method. Skip utility methods like getGroupMembers if needed."
+  },
+  "signal_points": {
+    "wow_factors_for_followup": [
+      "Immediately recognizing the query-time vs cache-time tradeoff",
+      "Mentioning bidirectional mapping for O(1) lookups both ways",
+      "Discussing how this design extends to nested groups (Part 3)",
+      "Noting that Set union automatically handles deduplication"
+    ]
+  },
+  "pattern_recognition": {
+    "pattern": "Query-Time Aggregation / Lazy Evaluation",
+    "indicators": [
+      "Multiple data sources need to be combined",
+      "Updates to source data are frequent",
+      "Cache invalidation would be complex",
+      "Query-time aggregation is cheap enough"
+    ],
+    "similar_problems": [
+      "AWS IAM policy evaluation",
+      "Unix file permission inheritance",
+      "Database view materialization decisions",
+      "Real-time analytics dashboards"
+    ],
+    "template": "# Query-time aggregation template\\ndef get_effective_value(entity_id):\\n    result = get_direct_value(entity_id)\\n    for source in get_inheritance_sources(entity_id):\\n        result = merge(result, get_value_from_source(source))\\n    return result"
+  },
+  "thinking_process": [
+    {
+      "step": 1,
+      "thought": "When I see 'inheritance' and 'union', I immediately think about whether to cache or compute on demand",
+      "why": "This is a classic tradeoff in access control systems"
+    },
+    {
+      "step": 2,
+      "thought": "The fact that employees can be in multiple groups suggests I need a Set<groupId> per employee",
+      "why": "Multiple membership requires collection, Set handles duplicates"
+    },
+    {
+      "step": 3,
+      "thought": "I should mirror the employeeAccess structure for groupAccess",
+      "why": "Consistency makes code easier to understand and maintain"
+    },
+    {
+      "step": 4,
+      "thought": "Bidirectional mapping (employee\u2192groups AND group\u2192employees) will be useful",
+      "why": "Efficient lookups in both directions, needed for remove operations"
+    }
+  ],
+  "interviewer_perspective": {
+    "what_they_evaluate": [
+      "Can you extend existing code cleanly without rewriting?",
+      "Do you recognize the caching vs computation tradeoff?",
+      "Can you explain your design decisions clearly?",
+      "Do you handle edge cases (empty groups, unknown IDs)?"
+    ],
+    "bonus_points": [
+      "Mentioning the query-time vs cache-time tradeoff unprompted",
+      "Discussing bidirectional mapping benefits",
+      "Noting how this extends to nested groups",
+      "Clean, readable code that follows Part 1 patterns"
+    ],
+    "red_flags": [
+      "Rewriting Part 1 code unnecessarily",
+      "Not understanding that revoke_access shouldn't affect group access",
+      "O(n) or worse for add/remove group operations",
+      "Not testing with the provided examples"
+    ]
+  },
+  "ai_copilot_tips": {
+    "what_to_do": [
+      "Use AI for boilerplate like the new data structure initializations",
+      "Let it help with Set operations syntax if unsure",
+      "Use it to generate test cases"
+    ],
+    "what_not_to_do": [
+      "Don't let AI decide between caching and query-time computation - understand the tradeoff yourself",
+      "Review the getEffectiveAccess logic carefully - it's the core algorithm",
+      "Don't accept suggestions that modify groupAccess in revoke_access"
+    ]
+  },
+  "red_flags_to_avoid": {
+    "behavioral": [
+      "Not asking clarifying questions about the inheritance model",
+      "Spending too long on minor details instead of core algorithm"
+    ],
+    "technical": [
+      "Caching effective access without discussing invalidation",
+      "Modifying the wrong data structure (employee vs group)",
+      "Not handling missing keys gracefully"
+    ],
+    "communication": [
+      "Not explaining why query-time computation was chosen",
+      "Not mentioning time complexity of new methods",
+      "Forgetting to test the new functionality"
+    ]
+  },
+  "final_checklist": {
+    "before_saying_done": [
+      "Does getEffectiveAccess include both direct AND inherited access?",
+      "Is addEmployeeToGroup O(1)?",
+      "Does revoke_access leave group access unchanged?",
+      "Did I test with the provided examples?",
+      "Are bidirectional mappings consistent?"
+    ],
+    "quick_code_review": [
+      "No KeyError/NullPointerException possibilities",
+      "Using get() with defaults for safe access",
+      "Consistent naming with Part 1",
+      "Type hints on all new methods"
+    ]
+  },
+  "production_considerations": {
+    "what_i_would_add": [
+      "Logging for audit trail (who changed what access when)",
+      "Input validation (non-null, non-empty IDs)",
+      "Metrics for access check latency and cache hit rates if caching added later",
+      "Thread-safety with ConcurrentHashMap or locks"
+    ],
+    "why_not_in_interview": "Focus on core algorithm; mention these verbally to show production awareness",
+    "how_to_mention": "Say: 'In production, I'd add logging here for security auditing and use ConcurrentHashMap for thread safety in a multi-threaded environment.'"
+  },
+  "generated_at": "2026-01-18T18:32:50.337110",
+  "_meta": {
+    "problem_id": "employee_access_management",
+    "part_number": 2,
+    "model": "claude-opus-4-5-20251101"
+  }
+}

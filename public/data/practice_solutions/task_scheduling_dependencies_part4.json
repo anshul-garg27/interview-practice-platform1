@@ -1,0 +1,995 @@
+{
+  "problem_title": "Task Scheduling with Dependencies - Part 4: Dynamic Task Addition",
+  "part_number": 4,
+  "builds_on": "Part 3",
+  "difficulty": "hard",
+  "problem_understanding": {
+    "what_changes": "Part 3 computed the critical path statically. Part 4 requires supporting **dynamic task addition** at runtime while efficiently updating the schedule. The key insight is that we don't need to recompute the entire graph - a new task only affects future scheduling, never past completion times.",
+    "new_requirements": [
+      "Add new tasks dynamically with O(p) complexity where p = number of prerequisites",
+      "Maintain current estimated completion time",
+      "Validate new tasks (no duplicates, no cycles, valid prerequisites)",
+      "Support queries for current estimated completion in O(1)"
+    ],
+    "new_constraints": [
+      "addTask must be O(p) not O(V+E) - cannot rerun full topological sort",
+      "Cannot restart already-completed tasks",
+      "Must detect and reject invalid additions (cycles, duplicates, missing prerequisites)"
+    ],
+    "key_insight": "A new task's completion time depends ONLY on its prerequisites' completion times - which are already computed and immutable. Thus: `new_completion = max(prereq_completions) + duration`. The global estimate only needs updating if this new task extends the critical path."
+  },
+  "requirements_coverage": {
+    "checklist": [
+      {
+        "requirement": "O(p) addTask complexity",
+        "how_met": "Only iterate through prerequisites array once to find max completion time",
+        "gotchas": [
+          "Don't traverse the entire graph",
+          "Don't recompute topological order"
+        ]
+      },
+      {
+        "requirement": "Cycle detection",
+        "how_met": "Check if taskId appears in prerequisites (self-loop). Since we only ADD new task IDs, other cycles are impossible",
+        "gotchas": [
+          "New tasks can't create cycles with existing tasks since they don't exist yet"
+        ]
+      },
+      {
+        "requirement": "O(1) getEstimatedCompletion",
+        "how_met": "Maintain a running maximum that's updated on each addTask",
+        "gotchas": [
+          "Must update max on every successful add, not just query time"
+        ]
+      },
+      {
+        "requirement": "Validate prerequisites exist",
+        "how_met": "Check task_ids set for each prerequisite in O(1) each",
+        "gotchas": [
+          "Return False immediately if any prerequisite is missing"
+        ]
+      }
+    ],
+    "complexity_targets": [
+      {
+        "operation": "initialize",
+        "target": "O(V+E)",
+        "achieved": "O(V+E)",
+        "why": "Must process all initial tasks and dependencies once"
+      },
+      {
+        "operation": "addTask",
+        "target": "O(p)",
+        "achieved": "O(p)",
+        "why": "Only iterates prerequisites to find max completion time"
+      },
+      {
+        "operation": "getEstimatedCompletion",
+        "target": "O(1)",
+        "achieved": "O(1)",
+        "why": "Returns pre-computed cached value"
+      }
+    ],
+    "non_goals": [
+      "Removing tasks (not required)",
+      "Adding dependencies between existing tasks (would require recomputation)",
+      "Real-time simulation with actual worker assignment",
+      "Handling task failures or restarts"
+    ]
+  },
+  "assumptions": [
+    "Task IDs are unique positive integers",
+    "Durations are positive integers (no zero-duration tasks)",
+    "A task with empty prerequisites can start immediately (at time 0 or current max completion of its chain)",
+    "The 'current time' for a new task is determined by its prerequisites, not real wall-clock time",
+    "We assume initialize is called before any other operations"
+  ],
+  "tradeoffs": [
+    {
+      "decision": "Store completion_times HashMap vs recompute on demand",
+      "chosen": "Store completion_times HashMap",
+      "why": "Enables O(p) addTask by looking up prerequisite completions directly",
+      "alternative": "Recompute via graph traversal",
+      "when_to_switch": "Never for this problem - would violate O(p) requirement"
+    },
+    {
+      "decision": "Cache estimated_completion vs compute as max(all completion times)",
+      "chosen": "Cache estimated_completion",
+      "why": "Enables O(1) getEstimatedCompletion queries",
+      "alternative": "Iterate all completion times on each query",
+      "when_to_switch": "If tasks could be removed and completion time could decrease"
+    },
+    {
+      "decision": "Simple cycle check (self-loop only) vs full DFS cycle detection",
+      "chosen": "Simple self-loop check",
+      "why": "When adding NEW task IDs, only self-loops are possible. More complex cycles would require the new task to already exist",
+      "alternative": "Full DFS from new task following dependencies backward",
+      "when_to_switch": "If we supported adding dependencies between existing tasks"
+    }
+  ],
+  "extensibility_notes": {
+    "what_to_keep_stable": [
+      "Public method signatures (initialize, add_task, get_estimated_completion)",
+      "completion_times invariant: once set, a task's completion time never changes",
+      "estimated_completion invariant: always equals max of all completion times"
+    ],
+    "what_to_change": [
+      "Added completion_times HashMap for O(1) lookups",
+      "Added estimated_completion cache for O(1) queries",
+      "Simplified graph storage since we don't need full adjacency for queries"
+    ],
+    "interfaces_and_boundaries": "The class encapsulates all state. Future parts could extend by adding methods like removeTask() or addDependency() without changing existing method contracts.",
+    "invariants": [
+      "task_ids contains exactly all known task IDs",
+      "completion_times[t] = max(completion_times[prereq]) + durations[t] for all t",
+      "estimated_completion = max(completion_times.values())",
+      "No cycles exist in the dependency graph"
+    ]
+  },
+  "visual_explanation": {
+    "before_after": "```\n=== BEFORE addTask(4, 3, [1, 2]) ===\n\nGraph:          Completion Times:\n   1(5)         task_id | completion\n   \u2502            --------|------------\n   \u25bc               1    |     5\n   2(3)            2    |     8\n   \u2502               3    |     9\n   \u25bc            \n   3(4)         estimated_completion = 9\n\n=== AFTER addTask(4, 3, [1, 2]) ===\n\nGraph:          Completion Times:\n   1(5)         task_id | completion\n   \u2502  \\         --------|------------\n   \u25bc   \\           1    |     5\n   2(3) \\          2    |     8\n   \u2502     \\         3    |     9\n   \u25bc      \u25bc        4    |    11  \u2190 NEW (max(5,8)+3)\n   3(4)  4(3)\n                estimated_completion = 11 \u2190 UPDATED\n```",
+    "algorithm_flow": "```\naddTask(task_id=4, duration=3, prerequisites=[1,2]):\n\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502 Step 1: VALIDATION                                  \u2502\n\u2502                                                     \u2502\n\u2502   task_id=4 in task_ids? NO \u2713                       \u2502\n\u2502   task_id=4 in prerequisites[1,2]? NO \u2713             \u2502\n\u2502   All prerequisites exist?                          \u2502\n\u2502     1 in task_ids? YES \u2713                            \u2502\n\u2502     2 in task_ids? YES \u2713                            \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n                    \u2502\n                    \u25bc\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502 Step 2: COMPUTE START TIME                          \u2502\n\u2502                                                     \u2502\n\u2502   completion_times[1] = 5                           \u2502\n\u2502   completion_times[2] = 8                           \u2502\n\u2502   start_time = max(5, 8) = 8                        \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n                    \u2502\n                    \u25bc\n\u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n\u2502 Step 3: COMPUTE COMPLETION & UPDATE                 \u2502\n\u2502                                                     \u2502\n\u2502   completion_time = 8 + 3 = 11                      \u2502\n\u2502   completion_times[4] = 11                          \u2502\n\u2502   estimated_completion = max(9, 11) = 11            \u2502\n\u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n                    \u2502\n                    \u25bc\n              return True\n```"
+  },
+  "approaches": [
+    {
+      "name": "Naive Extension - Recompute Everything",
+      "description": "On each addTask, add the task to the graph and rerun the full topological sort with completion time calculation from Part 3",
+      "time_complexity": "O(V+E) per addTask",
+      "space_complexity": "O(V+E)",
+      "why_not_optimal": "Violates the O(p) requirement. If we add n tasks one by one, total time becomes O(n*(V+E)) instead of O(n*p). For large graphs with few prerequisites per task, this is dramatically slower."
+    },
+    {
+      "name": "Optimal Approach - Incremental Update",
+      "description": "Maintain completion_times map from initialization. For new tasks, compute completion directly from prerequisites without graph traversal. Key insight: a new task's completion depends ONLY on its direct prerequisites, which are already computed.",
+      "time_complexity": "O(p) per addTask, O(1) per getEstimatedCompletion",
+      "space_complexity": "O(V) additional for completion_times cache",
+      "key_insight": "Completion times are monotonically determined by the topological order. Once a task's completion time is computed, it never changes. A new task simply reads its prerequisites' times and adds its duration."
+    }
+  ],
+  "optimal_solution": {
+    "explanation_md": "## Optimal Solution: Incremental Completion Time Tracking\n\n### Core Insight\n\nThe **key realization** is that completion times form a **monotonic** property in the DAG:\n- A task's completion time depends only on its **direct predecessors**\n- Once computed, a completion time **never changes** (we don't allow removing tasks or modifying dependencies)\n- Adding a new task **cannot affect** any existing task's completion time\n\n### Data Structure Design\n\n1. **`task_ids: Set[int]`** - O(1) existence checks for validation\n2. **`durations: Dict[int, int]`** - Store task durations\n3. **`completion_times: Dict[int, int]`** - **Critical**: Maps each task to when it finishes\n4. **`estimated_completion: int`** - Running maximum, updated on each add\n\n### Algorithm\n\n**initialize(tasks, deps)**:\n1. Build graph and run topological sort\n2. Compute completion times using DP: `completion[t] = max(completion[prereq]) + duration[t]`\n3. Set `estimated_completion = max(all completion times)`\n\n**addTask(id, duration, prereqs)**:\n1. **Validate**: no duplicate ID, no self-loop, all prereqs exist\n2. **Compute**: `start = max(completion_times[p] for p in prereqs)`\n3. **Store**: `completion_times[id] = start + duration`\n4. **Update**: `estimated_completion = max(estimated_completion, completion_times[id])`\n5. Return True\n\n### Why This Is O(p)\n\nWe only iterate through the `prerequisites` array **once**:\n- Checking each prerequisite exists: O(1) per prereq\n- Looking up completion time: O(1) per prereq\n- Finding max: O(p) total\n- All other operations: O(1)",
+    "data_structures": [
+      {
+        "structure": "HashSet<Integer> taskIds",
+        "purpose": "O(1) duplicate detection and prerequisite validation"
+      },
+      {
+        "structure": "HashMap<Integer, Integer> durations",
+        "purpose": "Store task durations for completion calculation"
+      },
+      {
+        "structure": "HashMap<Integer, Integer> completionTimes",
+        "purpose": "Cache completion times - the core optimization enabling O(p) addTask"
+      },
+      {
+        "structure": "int estimatedCompletion",
+        "purpose": "Running maximum for O(1) query response"
+      }
+    ],
+    "algorithm_steps": [
+      "Step 1: Validate task_id is not duplicate (check taskIds set)",
+      "Step 2: Validate task_id not in prerequisites (self-loop check)",
+      "Step 3: Validate all prerequisites exist (check taskIds for each)",
+      "Step 4: Add task_id to taskIds and store duration",
+      "Step 5: Compute start_time = max(completion_times[prereq] for all prereqs), default 0",
+      "Step 6: Compute and store completion_time = start_time + duration",
+      "Step 7: Update estimated_completion if new task extends critical path",
+      "Step 8: Return True indicating success"
+    ]
+  },
+  "solution_python_lines": [
+    "from typing import List, Dict, Set, Optional",
+    "from collections import defaultdict, deque",
+    "",
+    "",
+    "class DynamicTaskScheduler:",
+    "    \"\"\"",
+    "    Dynamic task scheduler supporting runtime task addition.",
+    "    ",
+    "    Maintains completion times for efficient incremental updates.",
+    "    - initialize(): O(V+E) - standard topological sort",
+    "    - add_task(): O(p) - only iterates prerequisites",
+    "    - get_estimated_completion(): O(1) - returns cached value",
+    "    \"\"\"",
+    "    ",
+    "    def __init__(self):",
+    "        self.task_ids: Set[int] = set()",
+    "        self.durations: Dict[int, int] = {}",
+    "        self.completion_times: Dict[int, int] = {}",
+    "        self.estimated_completion: int = 0",
+    "    ",
+    "    def initialize(self, task_list: List[List[int]], dependency_list: List[List[int]]) -> None:",
+    "        \"\"\"",
+    "        Initialize scheduler with tasks and dependencies.",
+    "        ",
+    "        Args:",
+    "            task_list: List of [task_id, duration] pairs",
+    "            dependency_list: List of [from_task, to_task] dependencies",
+    "        ",
+    "        Time Complexity: O(V + E)",
+    "        Space Complexity: O(V + E)",
+    "        \"\"\"",
+    "        # Reset all state",
+    "        self.task_ids.clear()",
+    "        self.durations.clear()",
+    "        self.completion_times.clear()",
+    "        self.estimated_completion = 0",
+    "        ",
+    "        if not task_list:",
+    "            return",
+    "        ",
+    "        # Store tasks",
+    "        for task_id, duration in task_list:",
+    "            self.task_ids.add(task_id)",
+    "            self.durations[task_id] = duration",
+    "        ",
+    "        # Build adjacency list and track predecessors",
+    "        adjacency: Dict[int, List[int]] = defaultdict(list)",
+    "        predecessors: Dict[int, List[int]] = defaultdict(list)",
+    "        in_degree: Dict[int, int] = {task_id: 0 for task_id in self.task_ids}",
+    "        ",
+    "        for from_task, to_task in dependency_list:",
+    "            adjacency[from_task].append(to_task)",
+    "            predecessors[to_task].append(from_task)",
+    "            in_degree[to_task] += 1",
+    "        ",
+    "        # Kahn's algorithm with completion time calculation",
+    "        queue = deque()",
+    "        for task_id in self.task_ids:",
+    "            if in_degree[task_id] == 0:",
+    "                queue.append(task_id)",
+    "                # Tasks with no dependencies start at time 0",
+    "                self.completion_times[task_id] = self.durations[task_id]",
+    "        ",
+    "        while queue:",
+    "            current = queue.popleft()",
+    "            ",
+    "            for neighbor in adjacency[current]:",
+    "                in_degree[neighbor] -= 1",
+    "                ",
+    "                if in_degree[neighbor] == 0:",
+    "                    # All predecessors processed - compute completion time",
+    "                    max_prereq_time = max(",
+    "                        (self.completion_times[p] for p in predecessors[neighbor]),",
+    "                        default=0",
+    "                    )",
+    "                    self.completion_times[neighbor] = max_prereq_time + self.durations[neighbor]",
+    "                    queue.append(neighbor)",
+    "        ",
+    "        # Compute initial estimated completion (critical path length)",
+    "        if self.completion_times:",
+    "            self.estimated_completion = max(self.completion_times.values())",
+    "    ",
+    "    def add_task(self, task_id: int, duration: int, prerequisites: List[int]) -> bool:",
+    "        \"\"\"",
+    "        Add a new task dynamically.",
+    "        ",
+    "        Args:",
+    "            task_id: Unique identifier for the new task",
+    "            duration: Time to complete the task",
+    "            prerequisites: Task IDs that must complete before this task",
+    "        ",
+    "        Returns:",
+    "            True if added successfully, False if invalid",
+    "        ",
+    "        Time Complexity: O(p) where p = len(prerequisites)",
+    "        Space Complexity: O(1) additional",
+    "        \"\"\"",
+    "        # Validation 1: Check for duplicate task ID",
+    "        if task_id in self.task_ids:",
+    "            return False",
+    "        ",
+    "        # Validation 2: Check for self-loop (only possible cycle with new task)",
+    "        if task_id in prerequisites:",
+    "            return False",
+    "        ",
+    "        # Validation 3: Ensure all prerequisites exist",
+    "        for prereq in prerequisites:",
+    "            if prereq not in self.task_ids:",
+    "                return False",
+    "        ",
+    "        # Add task to tracking structures",
+    "        self.task_ids.add(task_id)",
+    "        self.durations[task_id] = duration",
+    "        ",
+    "        # Compute start time: max of all prerequisite completion times",
+    "        if prerequisites:",
+    "            start_time = max(self.completion_times[prereq] for prereq in prerequisites)",
+    "        else:",
+    "            start_time = 0",
+    "        ",
+    "        # Compute and store completion time",
+    "        completion_time = start_time + duration",
+    "        self.completion_times[task_id] = completion_time",
+    "        ",
+    "        # Update estimated completion if this extends the critical path",
+    "        self.estimated_completion = max(self.estimated_completion, completion_time)",
+    "        ",
+    "        return True",
+    "    ",
+    "    def get_estimated_completion(self) -> int:",
+    "        \"\"\"",
+    "        Get current estimated total completion time.",
+    "        ",
+    "        Returns:",
+    "            Maximum completion time across all tasks (critical path length)",
+    "        ",
+    "        Time Complexity: O(1)",
+    "        \"\"\"",
+    "        return self.estimated_completion",
+    "",
+    "",
+    "# ============================================================",
+    "# DEMONSTRATION AND TESTING",
+    "# ============================================================",
+    "",
+    "def run_demo():",
+    "    \"\"\"Demonstrate the DynamicTaskScheduler with examples.\"\"\"",
+    "    print(\"=\" * 60)",
+    "    print(\"DYNAMIC TASK SCHEDULER DEMONSTRATION\")",
+    "    print(\"=\" * 60)",
+    "    ",
+    "    # Example 1: Basic operation",
+    "    print(\"\\n--- Example 1: Basic Operations ---\")",
+    "    scheduler = DynamicTaskScheduler()",
+    "    ",
+    "    # Initialize: tasks 1(5), 2(3) with dependency 1->2",
+    "    print(\"Initializing with tasks [1,5], [2,3] and dependency 1->2\")",
+    "    scheduler.initialize([[1, 5], [2, 3]], [[1, 2]])",
+    "    ",
+    "    est = scheduler.get_estimated_completion()",
+    "    print(f\"Estimated completion: {est} (expected: 8)\")",
+    "    assert est == 8, f\"Expected 8, got {est}\"",
+    "    ",
+    "    # Add task 3 depending on task 1",
+    "    print(\"\\nAdding task 3 (duration=4, depends on task 1)\")",
+    "    result = scheduler.add_task(3, 4, [1])",
+    "    print(f\"Add result: {result} (expected: True)\")",
+    "    assert result == True",
+    "    ",
+    "    est = scheduler.get_estimated_completion()",
+    "    print(f\"Estimated completion: {est} (expected: 9)\")",
+    "    assert est == 9, f\"Expected 9, got {est}\"",
+    "    ",
+    "    # Example 2: Building a chain dynamically",
+    "    print(\"\\n--- Example 2: Building a Chain ---\")",
+    "    scheduler2 = DynamicTaskScheduler()",
+    "    scheduler2.initialize([[1, 5]], [])",
+    "    print(\"Initialized with task 1 (duration=5)\")",
+    "    ",
+    "    print(\"Adding task 2 (duration=3, depends on 1)\")",
+    "    assert scheduler2.add_task(2, 3, [1]) == True",
+    "    ",
+    "    print(\"Adding task 3 (duration=2, depends on 2)\")",
+    "    assert scheduler2.add_task(3, 2, [2]) == True",
+    "    ",
+    "    est = scheduler2.get_estimated_completion()",
+    "    print(f\"Final chain 1->2->3 completion: {est} (expected: 10)\")",
+    "    assert est == 10",
+    "    ",
+    "    # Example 3: Error cases",
+    "    print(\"\\n--- Example 3: Error Cases ---\")",
+    "    scheduler3 = DynamicTaskScheduler()",
+    "    scheduler3.initialize([[1, 5]], [])",
+    "    ",
+    "    # Try to add duplicate",
+    "    print(\"Attempting to add duplicate task 1...\")",
+    "    result = scheduler3.add_task(1, 3, [])",
+    "    print(f\"Result: {result} (expected: False)\")",
+    "    assert result == False",
+    "    ",
+    "    # Try self-loop",
+    "    print(\"Attempting to add task 2 depending on itself...\")",
+    "    result = scheduler3.add_task(2, 3, [2])",
+    "    print(f\"Result: {result} (expected: False)\")",
+    "    assert result == False",
+    "    ",
+    "    # Try missing prerequisite",
+    "    print(\"Attempting to add task 2 depending on non-existent task 99...\")",
+    "    result = scheduler3.add_task(2, 3, [99])",
+    "    print(f\"Result: {result} (expected: False)\")",
+    "    assert result == False",
+    "    ",
+    "    # Example 4: Multiple prerequisites",
+    "    print(\"\\n--- Example 4: Multiple Prerequisites ---\")",
+    "    scheduler4 = DynamicTaskScheduler()",
+    "    scheduler4.initialize([[1, 5], [2, 8], [3, 3]], [])",
+    "    print(\"Tasks: 1(5), 2(8), 3(3) - no dependencies\")",
+    "    print(f\"Initial completion: {scheduler4.get_estimated_completion()} (expected: 8)\")",
+    "    ",
+    "    # Add task 4 depending on all three",
+    "    print(\"Adding task 4 (duration=2, depends on 1,2,3)\")",
+    "    scheduler4.add_task(4, 2, [1, 2, 3])",
+    "    est = scheduler4.get_estimated_completion()",
+    "    print(f\"Final completion: {est} (expected: 10)\")",
+    "    print(\"  (Task 4 starts at max(5,8,3)=8, finishes at 8+2=10)\")",
+    "    assert est == 10",
+    "    ",
+    "    print(\"\\n\" + \"=\" * 60)",
+    "    print(\"ALL TESTS PASSED!\")",
+    "    print(\"=\" * 60)",
+    "",
+    "",
+    "if __name__ == \"__main__\":",
+    "    run_demo()"
+  ],
+  "solution_java_lines": [
+    "import java.util.*;",
+    "",
+    "/**",
+    " * Dynamic Task Scheduler supporting runtime task addition.",
+    " * ",
+    " * Complexity:",
+    " *   - initialize(): O(V+E)",
+    " *   - addTask(): O(p) where p = number of prerequisites",
+    " *   - getEstimatedCompletion(): O(1)",
+    " */",
+    "public class DynamicTaskScheduler {",
+    "    private Set<Integer> taskIds;",
+    "    private Map<Integer, Integer> durations;",
+    "    private Map<Integer, Integer> completionTimes;",
+    "    private int estimatedCompletion;",
+    "    ",
+    "    public DynamicTaskScheduler() {",
+    "        taskIds = new HashSet<>();",
+    "        durations = new HashMap<>();",
+    "        completionTimes = new HashMap<>();",
+    "        estimatedCompletion = 0;",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Initialize scheduler with tasks and dependencies.",
+    "     * @param taskList Array of [task_id, duration] pairs",
+    "     * @param dependencyList Array of [from_task, to_task] dependencies",
+    "     */",
+    "    public void initialize(int[][] taskList, int[][] dependencyList) {",
+    "        // Reset state",
+    "        taskIds.clear();",
+    "        durations.clear();",
+    "        completionTimes.clear();",
+    "        estimatedCompletion = 0;",
+    "        ",
+    "        if (taskList == null || taskList.length == 0) {",
+    "            return;",
+    "        }",
+    "        ",
+    "        // Store tasks",
+    "        Map<Integer, List<Integer>> adjacency = new HashMap<>();",
+    "        Map<Integer, List<Integer>> predecessors = new HashMap<>();",
+    "        Map<Integer, Integer> inDegree = new HashMap<>();",
+    "        ",
+    "        for (int[] task : taskList) {",
+    "            int taskId = task[0];",
+    "            int duration = task[1];",
+    "            taskIds.add(taskId);",
+    "            durations.put(taskId, duration);",
+    "            adjacency.put(taskId, new ArrayList<>());",
+    "            predecessors.put(taskId, new ArrayList<>());",
+    "            inDegree.put(taskId, 0);",
+    "        }",
+    "        ",
+    "        // Build graph",
+    "        if (dependencyList != null) {",
+    "            for (int[] dep : dependencyList) {",
+    "                int fromTask = dep[0];",
+    "                int toTask = dep[1];",
+    "                adjacency.get(fromTask).add(toTask);",
+    "                predecessors.get(toTask).add(fromTask);",
+    "                inDegree.put(toTask, inDegree.get(toTask) + 1);",
+    "            }",
+    "        }",
+    "        ",
+    "        // Kahn's algorithm with completion time calculation",
+    "        Queue<Integer> queue = new LinkedList<>();",
+    "        for (int taskId : taskIds) {",
+    "            if (inDegree.get(taskId) == 0) {",
+    "                queue.offer(taskId);",
+    "                completionTimes.put(taskId, durations.get(taskId));",
+    "            }",
+    "        }",
+    "        ",
+    "        while (!queue.isEmpty()) {",
+    "            int current = queue.poll();",
+    "            ",
+    "            for (int neighbor : adjacency.get(current)) {",
+    "                inDegree.put(neighbor, inDegree.get(neighbor) - 1);",
+    "                ",
+    "                if (inDegree.get(neighbor) == 0) {",
+    "                    int maxPrereqTime = 0;",
+    "                    for (int prereq : predecessors.get(neighbor)) {",
+    "                        maxPrereqTime = Math.max(maxPrereqTime, completionTimes.get(prereq));",
+    "                    }",
+    "                    completionTimes.put(neighbor, maxPrereqTime + durations.get(neighbor));",
+    "                    queue.offer(neighbor);",
+    "                }",
+    "            }",
+    "        }",
+    "        ",
+    "        // Compute initial estimated completion",
+    "        for (int time : completionTimes.values()) {",
+    "            estimatedCompletion = Math.max(estimatedCompletion, time);",
+    "        }",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Add a new task dynamically.",
+    "     * @param taskId Unique identifier",
+    "     * @param duration Time to complete",
+    "     * @param prerequisites Tasks that must complete first",
+    "     * @return true if added, false if invalid",
+    "     */",
+    "    public boolean addTask(int taskId, int duration, int[] prerequisites) {",
+    "        // Check for duplicate",
+    "        if (taskIds.contains(taskId)) {",
+    "            return false;",
+    "        }",
+    "        ",
+    "        // Check for self-loop",
+    "        for (int prereq : prerequisites) {",
+    "            if (prereq == taskId) {",
+    "                return false;",
+    "            }",
+    "        }",
+    "        ",
+    "        // Check all prerequisites exist",
+    "        for (int prereq : prerequisites) {",
+    "            if (!taskIds.contains(prereq)) {",
+    "                return false;",
+    "            }",
+    "        }",
+    "        ",
+    "        // Add task",
+    "        taskIds.add(taskId);",
+    "        durations.put(taskId, duration);",
+    "        ",
+    "        // Compute start time from prerequisites",
+    "        int startTime = 0;",
+    "        for (int prereq : prerequisites) {",
+    "            startTime = Math.max(startTime, completionTimes.get(prereq));",
+    "        }",
+    "        ",
+    "        // Store completion time",
+    "        int completionTime = startTime + duration;",
+    "        completionTimes.put(taskId, completionTime);",
+    "        ",
+    "        // Update estimated completion",
+    "        estimatedCompletion = Math.max(estimatedCompletion, completionTime);",
+    "        ",
+    "        return true;",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Get current estimated completion time.",
+    "     * @return Maximum completion time (critical path length)",
+    "     */",
+    "    public int getEstimatedCompletion() {",
+    "        return estimatedCompletion;",
+    "    }",
+    "    ",
+    "    // Demo and testing",
+    "    public static void main(String[] args) {",
+    "        System.out.println(\"=\" .repeat(60));",
+    "        System.out.println(\"DYNAMIC TASK SCHEDULER - JAVA DEMO\");",
+    "        System.out.println(\"=\" .repeat(60));",
+    "        ",
+    "        DynamicTaskScheduler scheduler = new DynamicTaskScheduler();",
+    "        ",
+    "        // Example 1",
+    "        System.out.println(\"\\nExample 1: Basic Operations\");",
+    "        scheduler.initialize(",
+    "            new int[][]{{1, 5}, {2, 3}},",
+    "            new int[][]{{1, 2}}",
+    "        );",
+    "        System.out.println(\"Initial completion: \" + scheduler.getEstimatedCompletion() + \" (expected: 8)\");",
+    "        ",
+    "        scheduler.addTask(3, 4, new int[]{1});",
+    "        System.out.println(\"After adding task 3: \" + scheduler.getEstimatedCompletion() + \" (expected: 9)\");",
+    "        ",
+    "        // Example 2",
+    "        System.out.println(\"\\nExample 2: Chain Building\");",
+    "        DynamicTaskScheduler scheduler2 = new DynamicTaskScheduler();",
+    "        scheduler2.initialize(new int[][]{{1, 5}}, new int[][]{});",
+    "        scheduler2.addTask(2, 3, new int[]{1});",
+    "        scheduler2.addTask(3, 2, new int[]{2});",
+    "        System.out.println(\"Chain 1->2->3: \" + scheduler2.getEstimatedCompletion() + \" (expected: 10)\");",
+    "        ",
+    "        System.out.println(\"\\nAll tests passed!\");",
+    "    }",
+    "}"
+  ],
+  "code_walkthrough": [
+    {
+      "lines": "1-4",
+      "explanation": "Import necessary collections for the implementation"
+    },
+    {
+      "lines": "6-13",
+      "explanation": "Class docstring explaining purpose and complexity guarantees"
+    },
+    {
+      "lines": "15-19",
+      "explanation": "Constructor initializes empty data structures: task_ids set, durations/completion_times dicts, and estimated_completion counter"
+    },
+    {
+      "lines": "21-45",
+      "explanation": "initialize() - Reset state and store tasks. Build adjacency list and predecessors map for graph traversal"
+    },
+    {
+      "lines": "47-62",
+      "explanation": "Kahn's algorithm: process nodes with zero in-degree, compute completion times using DP formula"
+    },
+    {
+      "lines": "64-66",
+      "explanation": "Set initial estimated_completion as max of all completion times (critical path)"
+    },
+    {
+      "lines": "68-98",
+      "explanation": "add_task() - The core O(p) method. Three validations (duplicate, self-loop, prerequisites exist), then compute start time as max of prerequisite completions"
+    },
+    {
+      "lines": "100-106",
+      "explanation": "Compute completion time, store it, and update global estimate if needed. Return True on success"
+    },
+    {
+      "lines": "108-116",
+      "explanation": "get_estimated_completion() - O(1) getter returning cached value"
+    }
+  ],
+  "complexity_analysis": {
+    "time": {
+      "new_methods": {
+        "initialize": {
+          "complexity": "O(V+E)",
+          "explanation": "Standard topological sort, processing each vertex and edge once"
+        },
+        "add_task": {
+          "complexity": "O(p)",
+          "explanation": "Three O(p) passes: self-loop check, existence check, max calculation. No graph traversal."
+        },
+        "get_estimated_completion": {
+          "complexity": "O(1)",
+          "explanation": "Direct return of cached value"
+        }
+      },
+      "overall_change": "initialize remains O(V+E). The key improvement is add_task being O(p) instead of O(V+E) if we recomputed everything."
+    },
+    "space": {
+      "additional_space": "O(V)",
+      "explanation": "completion_times HashMap stores one integer per task. This is the key addition from Part 3 that enables O(p) updates."
+    }
+  },
+  "dry_run": {
+    "example_input": "initialize([[1,5],[2,3]], [[1,2]]), then addTask(3, 4, [1])",
+    "steps": [
+      {
+        "step": 1,
+        "action": "initialize called",
+        "state": "task_ids={1,2}, durations={1:5, 2:3}",
+        "explanation": "Store initial tasks"
+      },
+      {
+        "step": 2,
+        "action": "Build graph",
+        "state": "adjacency={1:[2]}, predecessors={2:[1]}, in_degree={1:0, 2:1}",
+        "explanation": "Task 1 has out-edge to 2"
+      },
+      {
+        "step": 3,
+        "action": "Start Kahn's",
+        "state": "queue=[1], completion_times={1:5}",
+        "explanation": "Task 1 has in_degree 0, starts immediately"
+      },
+      {
+        "step": 4,
+        "action": "Process task 1",
+        "state": "in_degree[2]=0, completion_times={1:5, 2:8}",
+        "explanation": "Task 2 now ready. Its completion = max(5)+3=8"
+      },
+      {
+        "step": 5,
+        "action": "Finalize",
+        "state": "estimated_completion=8",
+        "explanation": "max(5,8)=8"
+      },
+      {
+        "step": 6,
+        "action": "addTask(3,4,[1])",
+        "state": "Validating...",
+        "explanation": "3 not in task_ids, 3 not in [1], 1 in task_ids"
+      },
+      {
+        "step": 7,
+        "action": "Compute completion",
+        "state": "start_time=completion_times[1]=5",
+        "explanation": "Only prereq is task 1 which completes at 5"
+      },
+      {
+        "step": 8,
+        "action": "Store and update",
+        "state": "completion_times[3]=9, estimated_completion=max(8,9)=9",
+        "explanation": "New task extends critical path"
+      }
+    ],
+    "final_output": "addTask returns True, get_estimated_completion returns 9"
+  },
+  "debugging_playbook": {
+    "fast_sanity_checks": [
+      "Empty task list: initialize([], []) -> getEstimatedCompletion() should return 0",
+      "Single task: initialize([[1,5]], []) -> getEstimatedCompletion() should return 5",
+      "Add with no prereqs: addTask(2, 3, []) should set completion_times[2]=3"
+    ],
+    "likely_bugs": [
+      "Forgetting to add task_id to task_ids set (causes duplicate detection to fail)",
+      "Not handling empty prerequisites (start_time should be 0, not error)",
+      "Using wrong comparison: taskId in prerequisites should check the LIST, not the set",
+      "Not updating estimated_completion after successful add"
+    ],
+    "recommended_logs_or_asserts": [
+      "assert task_id not in self.task_ids before adding",
+      "assert all(prereq in self.completion_times for prereq in prerequisites)",
+      "log f'Added task {task_id}: start={start_time}, completion={completion_time}'"
+    ],
+    "how_to_localize": "If getEstimatedCompletion returns wrong value, print completion_times dict. Check if new task's completion was computed correctly by verifying max(prereq completions) + duration."
+  },
+  "edge_cases": [
+    {
+      "case": "Empty initialization",
+      "handling": "Return 0 for estimated completion, allow adding tasks from scratch",
+      "gotcha": "Don't assume task_list is non-empty"
+    },
+    {
+      "case": "Task with no prerequisites",
+      "handling": "start_time=0, completes at time=duration",
+      "gotcha": "max() on empty list needs default=0"
+    },
+    {
+      "case": "Duplicate task ID",
+      "handling": "Return False, don't modify any state",
+      "gotcha": "Check BEFORE making any modifications"
+    },
+    {
+      "case": "Self-referential task",
+      "handling": "Return False for task depending on itself",
+      "gotcha": "Check taskId IN prerequisites list, not just equality"
+    },
+    {
+      "case": "Missing prerequisite",
+      "handling": "Return False if any prereq not in task_ids",
+      "gotcha": "Fail fast - don't partially add the task"
+    },
+    {
+      "case": "Multiple predecessors",
+      "handling": "start_time = max of ALL predecessor completion times",
+      "gotcha": "It's max, not sum - parallel execution"
+    }
+  ],
+  "test_cases": [
+    {
+      "name": "Basic initialization and query",
+      "input": "initialize([[1,5],[2,3]], [[1,2]]), getEstimatedCompletion()",
+      "expected": "8",
+      "explanation": "Chain 1->2: 5+3=8"
+    },
+    {
+      "name": "Add task extending critical path",
+      "input": "After basic init, addTask(3, 4, [1])",
+      "expected": "True, estimated=9",
+      "explanation": "Task 3 starts at 5, ends at 9 > 8"
+    },
+    {
+      "name": "Add task not on critical path",
+      "input": "After basic init, addTask(3, 2, [1])",
+      "expected": "True, estimated=8",
+      "explanation": "Task 3 ends at 7 < 8, doesn't change critical path"
+    },
+    {
+      "name": "Duplicate rejection",
+      "input": "After init with task 1, addTask(1, 3, [])",
+      "expected": "False",
+      "explanation": "Task 1 already exists"
+    },
+    {
+      "name": "Self-loop rejection",
+      "input": "addTask(5, 3, [5])",
+      "expected": "False",
+      "explanation": "Task depends on itself"
+    },
+    {
+      "name": "Missing prerequisite rejection",
+      "input": "After init with task 1, addTask(2, 3, [99])",
+      "expected": "False",
+      "explanation": "Task 99 doesn't exist"
+    }
+  ],
+  "common_mistakes": [
+    {
+      "mistake": "Rerunning topological sort on addTask",
+      "why_wrong": "Violates O(p) requirement, makes it O(V+E)",
+      "correct_approach": "Directly compute from prerequisites' cached completion times",
+      "code_example_wrong": "# def add_task(...):\\n#   self.adjacency[prereq].append(task_id)\\n#   self._recompute_all_completions()  # O(V+E)!",
+      "code_example_correct": "# def add_task(...):\\n#   start = max(self.completion_times[p] for p in prereqs)\\n#   self.completion_times[task_id] = start + duration"
+    },
+    {
+      "mistake": "Not handling empty prerequisites",
+      "why_wrong": "max() on empty sequence throws error",
+      "correct_approach": "Use default=0 or check if prerequisites is empty",
+      "code_example_wrong": "start_time = max(self.completion_times[p] for p in prerequisites)",
+      "code_example_correct": "start_time = max((self.completion_times[p] for p in prerequisites), default=0)"
+    },
+    {
+      "mistake": "Modifying state before validation",
+      "why_wrong": "If validation fails later, state is corrupted",
+      "correct_approach": "All validation checks first, then modify state",
+      "code_example_wrong": "self.task_ids.add(task_id)\\nif task_id in prerequisites:\\n    return False  # task_id already added!",
+      "code_example_correct": "if task_id in self.task_ids:\\n    return False\\n# ... more validation\\nself.task_ids.add(task_id)"
+    },
+    {
+      "mistake": "Using sum instead of max for start time",
+      "why_wrong": "Prerequisites run in parallel, not sequence",
+      "correct_approach": "Start time is max of prerequisite completions",
+      "code_example_wrong": "start_time = sum(self.completion_times[p] for p in prereqs)",
+      "code_example_correct": "start_time = max(self.completion_times[p] for p in prereqs)"
+    }
+  ],
+  "interview_tips": {
+    "how_to_present": "Start by identifying what changes: 'The key insight for Part 4 is that a new task's completion time depends only on its direct prerequisites, which are already computed. This means we can achieve O(p) without re-running topological sort.'",
+    "what_to_mention": [
+      "Explicitly state the O(p) complexity and how it's achieved",
+      "Explain why cycles are only possible as self-loops when adding new tasks",
+      "Mention the monotonicity property: completion times never change once set",
+      "Discuss the space-time tradeoff: caching completion times enables fast queries"
+    ],
+    "time_allocation": "8-12 minutes: 2 min to understand, 3 min to explain approach, 5 min to code, 2 min to test",
+    "if_stuck": [
+      "Think about what information you need to compute a new task's completion time",
+      "Consider: do you need the full graph or just the prerequisites?",
+      "Remember: completion times are immutable once computed"
+    ]
+  },
+  "connection_to_next_part": "This solution maintains completion_times which could be extended for Part 5 features like task removal (would need to track dependents) or dynamic priority (would need a priority queue). The core invariant that completion times are monotonically increasing from sources to sinks would remain.",
+  "communication_script": {
+    "transition_from_previous": "Great, Part 3 found the critical path. For Part 4, I need to support adding tasks dynamically with O(p) complexity. Let me think about what state I need to maintain...",
+    "explaining_changes": "The key change is caching completion_times from initialization. This way, when I add a new task, I just look up its prerequisites' completion times in O(1) each, take the max, and add the duration. No graph traversal needed.",
+    "while_extending_code": [
+      "I'm adding a completion_times dictionary to cache when each task finishes...",
+      "For add_task, I first validate: no duplicate ID, no self-loop, all prereqs exist...",
+      "Then I compute start_time as max of prerequisite completion times...",
+      "Finally, I update the global estimated_completion if this new task is on the critical path..."
+    ],
+    "after_completing": "This handles Part 4. addTask is O(p), getEstimatedCompletion is O(1). Ready for any edge cases or the next part?"
+  },
+  "time_milestones": {
+    "time_budget": "8-12 minutes for this part",
+    "by_2_min": "Understand the O(p) requirement means we can't rerun topological sort",
+    "by_5_min": "Explain the approach: cache completion times, compute incrementally",
+    "by_10_min": "Implementation done, testing with examples",
+    "warning_signs": "If still figuring out data structures at 5 min, ask: 'What if I cached completion times during initialization?'"
+  },
+  "recovery_strategies": {
+    "if_part_builds_wrong": "Part 3 computed critical path but may not have stored completion_times. Say: 'Let me add the completion time caching to enable efficient updates.'",
+    "if_new_requirement_unclear": "Ask: 'When I add a task, should I assume all prerequisites already exist, or do I need to handle pending prerequisites?'",
+    "if_running_behind": "Skip cycle detection beyond self-loop (explain why other cycles are impossible). Focus on the core: compute completion from prerequisites."
+  },
+  "signal_points": {
+    "wow_factors_for_followup": [
+      "Immediately recognizing that completion times are monotonically immutable",
+      "Explaining why full cycle detection isn't needed for NEW tasks",
+      "Mentioning that the solution could extend to batch additions",
+      "Discussing how deletion would be harder (need dependent tracking)"
+    ]
+  },
+  "pattern_recognition": {
+    "pattern": "Incremental Graph Update / Dynamic Programming Cache",
+    "indicators": [
+      "Requirement for sub-linear update time (O(p) not O(V+E))",
+      "Monotonic property (completion times only increase)",
+      "New elements only depend on existing computed values"
+    ],
+    "similar_problems": [
+      "LRU Cache - incremental updates to data structure",
+      "Dijkstra's shortest path - once a node is finalized, its distance doesn't change",
+      "Union-Find - incremental connectivity queries"
+    ],
+    "template": "1. Precompute values during initialization\\n2. Cache results in a lookup structure\\n3. For updates, compute new value from cached prerequisites only\\n4. Update global metrics incrementally"
+  },
+  "thinking_process": [
+    {
+      "step": 1,
+      "thought": "O(p) requirement means I can't traverse the graph",
+      "why": "Traversal would be O(V+E) in worst case"
+    },
+    {
+      "step": 2,
+      "thought": "I need to access prerequisite completion times directly",
+      "why": "Only way to avoid traversal is O(1) lookup per prerequisite"
+    },
+    {
+      "step": 3,
+      "thought": "Completion times never change once computed",
+      "why": "We only add tasks, never modify dependencies of existing tasks"
+    },
+    {
+      "step": 4,
+      "thought": "Cache completion times during initialization",
+      "why": "Enables O(p) lookup during addTask"
+    }
+  ],
+  "interviewer_perspective": {
+    "what_they_evaluate": [
+      "Do you immediately recognize the O(p) constraint eliminates naive approaches?",
+      "Can you identify what state to cache for efficient updates?",
+      "Do you handle all validation cases correctly?",
+      "Is your code clean and well-structured?"
+    ],
+    "bonus_points": [
+      "Explaining the monotonicity property explicitly",
+      "Recognizing only self-loops are possible cycles",
+      "Discussing what would change if task removal was needed",
+      "Mentioning thread-safety considerations for production"
+    ],
+    "red_flags": [
+      "Rerunning topological sort on each add",
+      "Forgetting to update estimated_completion",
+      "Not validating prerequisites before modifying state",
+      "Overcomplicating cycle detection"
+    ]
+  },
+  "ai_copilot_tips": {
+    "what_to_do": [
+      "Use AI for boilerplate like docstrings and type hints",
+      "Let it help with Python's max() with default parameter syntax",
+      "Ask it to generate test cases for edge cases"
+    ],
+    "what_not_to_do": [
+      "Don't let AI suggest rerunning topological sort",
+      "Verify the cycle detection logic - AI might overcomplicate it",
+      "Check that AI's solution actually achieves O(p)"
+    ]
+  },
+  "red_flags_to_avoid": {
+    "behavioral": [
+      "Jumping to code without explaining the O(p) insight",
+      "Not asking if prerequisites are guaranteed to exist"
+    ],
+    "technical": [
+      "Storing more graph structure than needed",
+      "Using recursion that could blow the stack",
+      "Forgetting to return False for invalid inputs"
+    ],
+    "communication": [
+      "Not stating complexity explicitly",
+      "Not explaining why this is O(p)",
+      "Not testing with the provided examples"
+    ]
+  },
+  "final_checklist": {
+    "before_saying_done": [
+      "Did I achieve O(p) for addTask and O(1) for getEstimatedCompletion?",
+      "Did I handle all three validation cases (duplicate, self-loop, missing prereq)?",
+      "Did I trace through Example 1 to verify correctness?",
+      "Is estimated_completion updated on every successful add?"
+    ],
+    "quick_code_review": [
+      "Type hints on all method signatures",
+      "Docstrings with complexity noted",
+      "Consistent naming (snake_case in Python)",
+      "No unused imports or variables"
+    ]
+  },
+  "production_considerations": {
+    "what_i_would_add": [
+      "Input validation with descriptive error messages",
+      "Logging for addTask operations (task_id, prerequisites, computed completion)",
+      "Metrics for tracking add latency and rejection reasons",
+      "Thread-safe version using locks or concurrent data structures"
+    ],
+    "why_not_in_interview": "Focus on core algorithm. These are O(1) additions that don't affect complexity.",
+    "how_to_mention": "Say: 'In production, I'd add logging here to track dynamic task additions, and consider thread-safety if multiple threads call addTask.'"
+  },
+  "generated_at": "2026-01-18T18:55:59.436384",
+  "_meta": {
+    "problem_id": "task_scheduling_dependencies",
+    "part_number": 4,
+    "model": "claude-opus-4-5-20251101"
+  }
+}

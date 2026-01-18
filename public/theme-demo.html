@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Theme Comparison Demo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0a0a0a;
+      color: white;
+      padding: 40px;
+    }
+    
+    h1 {
+      text-align: center;
+      margin-bottom: 40px;
+      font-size: 24px;
+      color: #888;
+    }
+    
+    .themes-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    
+    .theme-card {
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+    
+    .theme-label {
+      text-align: center;
+      padding: 12px;
+      font-weight: 700;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+    
+    /* ============================================
+       THEME 1: WARM OBSIDIAN (Grayscale + Gold)
+       ============================================ */
+    .obsidian {
+      --bg-deep: #0C0C0C;
+      --bg-main: #121212;
+      --bg-card: #1A1A1A;
+      --bg-elevated: #242424;
+      --accent: #D4A853;
+      --accent-soft: rgba(212, 168, 83, 0.12);
+      --text-bright: #FAFAFA;
+      --text-secondary: #A0A0A0;
+      --text-muted: #666666;
+      --border: #2A2A2A;
+      --success: #4ADE80;
+      --warning: #FBBF24;
+    }
+    
+    .obsidian .theme-label {
+      background: linear-gradient(135deg, #1A1A1A, #242424);
+      color: var(--accent);
+      border-bottom: 2px solid var(--accent);
+    }
+    
+    /* ============================================
+       THEME 2: SAGE SCHOLAR (Gray-Green)
+       ============================================ */
+    .sage {
+      --bg-deep: #0A0F0A;
+      --bg-main: #0F1510;
+      --bg-card: #151D16;
+      --bg-elevated: #1C261E;
+      --accent: #4ADE80;
+      --accent-soft: rgba(74, 222, 128, 0.10);
+      --text-bright: #F0FFF4;
+      --text-secondary: #9CA38C;
+      --text-muted: #5C6356;
+      --border: #243026;
+      --success: #4ADE80;
+      --warning: #FBBF24;
+    }
+    
+    .sage .theme-label {
+      background: linear-gradient(135deg, #0F1510, #1C261E);
+      color: var(--accent);
+      border-bottom: 2px solid var(--accent);
+    }
+    
+    /* ============================================
+       THEME 3: TWILIGHT (Purple/Violet)
+       ============================================ */
+    .twilight {
+      --bg-deep: #0C0A14;
+      --bg-main: #110E1A;
+      --bg-card: #1A1525;
+      --bg-elevated: #241E32;
+      --accent: #A78BFA;
+      --accent-soft: rgba(167, 139, 250, 0.10);
+      --text-bright: #FAF5FF;
+      --text-secondary: #A8A0B8;
+      --text-muted: #6B6080;
+      --border: #2E2840;
+      --success: #4ADE80;
+      --warning: #FBBF24;
+    }
+    
+    .twilight .theme-label {
+      background: linear-gradient(135deg, #110E1A, #241E32);
+      color: var(--accent);
+      border-bottom: 2px solid var(--accent);
+    }
+    
+    /* ============================================
+       SHARED MODAL STYLING
+       ============================================ */
+    .modal-demo {
+      background: var(--bg-main);
+      padding: 0;
+    }
+    
+    .modal-header {
+      padding: 20px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--accent);
+    }
+    
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--accent);
+      margin-bottom: 8px;
+    }
+    
+    .badges {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    
+    .badge {
+      padding: 4px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    
+    .badge-difficulty {
+      background: var(--accent-soft);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+    }
+    
+    .badge-category {
+      background: var(--bg-elevated);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+    
+    /* Tabs */
+    .tabs {
+      display: flex;
+      gap: 8px;
+      padding: 16px;
+      background: var(--bg-deep);
+      border-bottom: 1px solid var(--border);
+    }
+    
+    .tab {
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      border: 2px solid transparent;
+      background: var(--bg-card);
+      color: var(--text-muted);
+    }
+    
+    .tab.active {
+      background: var(--accent-soft);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+    
+    .tab-icon {
+      font-size: 18px;
+    }
+    
+    /* Content */
+    .content {
+      padding: 16px;
+    }
+    
+    .section {
+      background: var(--bg-card);
+      border-radius: 8px;
+      margin-bottom: 12px;
+      border: 1px solid var(--border);
+      border-left: 3px solid var(--accent);
+      overflow: hidden;
+    }
+    
+    .section-header {
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-bright);
+    }
+    
+    .section-content {
+      padding: 0 14px 14px 14px;
+      font-size: 13px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+    
+    /* Interview Tip */
+    .interview-tip {
+      padding: 12px 14px;
+      background: var(--accent-soft);
+      border: 1px solid var(--accent);
+      border-left: 3px solid var(--accent);
+      border-radius: 8px;
+      margin-bottom: 12px;
+    }
+    
+    .tip-title {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+    
+    .tip-content {
+      font-size: 12px;
+      color: var(--text-secondary);
+      font-style: italic;
+    }
+    
+    /* Code block */
+    .code-block {
+      background: var(--bg-deep);
+      border-radius: 6px;
+      padding: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+      margin-top: 8px;
+    }
+    
+    .code-keyword { color: var(--accent); }
+    .code-string { color: var(--success); }
+    .code-comment { color: var(--text-muted); }
+    
+    /* Footer */
+    .modal-footer {
+      padding: 12px 16px;
+      background: var(--bg-card);
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .footer-text {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+    
+    .close-btn {
+      padding: 8px 16px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text-secondary);
+      font-size: 12px;
+      cursor: pointer;
+    }
+    
+    .close-btn:hover {
+      border-color: var(--accent);
+      color: var(--text-bright);
+    }
+    
+    /* Responsive */
+    @media (max-width: 1200px) {
+      .themes-grid {
+        grid-template-columns: 1fr;
+        max-width: 500px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>🎨 Choose Your Theme - Compare Side by Side</h1>
+  
+  <div class="themes-grid">
+    
+    <!-- THEME 1: WARM OBSIDIAN -->
+    <div class="theme-card obsidian">
+      <div class="theme-label">⭐ Option 1: Warm Obsidian</div>
+      <div class="modal-demo">
+        <div class="modal-header">
+          <div class="modal-title">💎 Delivery Cost Tracking System</div>
+          <div class="badges">
+            <span class="badge badge-difficulty">MEDIUM</span>
+            <span class="badge badge-category">LLD/OOP Design</span>
+          </div>
+        </div>
+        
+        <div class="tabs">
+          <div class="tab active">
+            <span class="tab-icon">🎯</span>
+            UNDERSTAND
+          </div>
+          <div class="tab">
+            <span class="tab-icon">🧠</span>
+            APPROACH
+          </div>
+          <div class="tab">
+            <span class="tab-icon">💻</span>
+            SOLUTION
+          </div>
+        </div>
+        
+        <div class="content">
+          <div class="interview-tip">
+            <div class="tip-title">💡 What to say first</div>
+            <div class="tip-content">"Thank you for this problem. Before I start coding, I'd like to understand the requirements..."</div>
+          </div>
+          
+          <div class="section">
+            <div class="section-header">🎯 First Impressions</div>
+            <div class="section-content">
+              This is a classic <strong>system design / OOP problem</strong>. The core challenge is about architectural decisions.
+              <div class="code-block">
+                <span class="code-keyword">class</span> DeliveryCostTracker:<br>
+                &nbsp;&nbsp;<span class="code-keyword">def</span> __init__(self):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-comment"># HashMap for O(1) lookup</span><br>
+                &nbsp;&nbsp;&nbsp;&nbsp;self.drivers = {}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="modal-footer">
+          <span class="footer-text">Premium • Professional • Focused</span>
+          <button class="close-btn">Close</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- THEME 2: SAGE SCHOLAR -->
+    <div class="theme-card sage">
+      <div class="theme-label">🌿 Option 2: Sage Scholar</div>
+      <div class="modal-demo">
+        <div class="modal-header">
+          <div class="modal-title">💎 Delivery Cost Tracking System</div>
+          <div class="badges">
+            <span class="badge badge-difficulty">MEDIUM</span>
+            <span class="badge badge-category">LLD/OOP Design</span>
+          </div>
+        </div>
+        
+        <div class="tabs">
+          <div class="tab active">
+            <span class="tab-icon">🎯</span>
+            UNDERSTAND
+          </div>
+          <div class="tab">
+            <span class="tab-icon">🧠</span>
+            APPROACH
+          </div>
+          <div class="tab">
+            <span class="tab-icon">💻</span>
+            SOLUTION
+          </div>
+        </div>
+        
+        <div class="content">
+          <div class="interview-tip">
+            <div class="tip-title">💡 What to say first</div>
+            <div class="tip-content">"Thank you for this problem. Before I start coding, I'd like to understand the requirements..."</div>
+          </div>
+          
+          <div class="section">
+            <div class="section-header">🎯 First Impressions</div>
+            <div class="section-content">
+              This is a classic <strong>system design / OOP problem</strong>. The core challenge is about architectural decisions.
+              <div class="code-block">
+                <span class="code-keyword">class</span> DeliveryCostTracker:<br>
+                &nbsp;&nbsp;<span class="code-keyword">def</span> __init__(self):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-comment"># HashMap for O(1) lookup</span><br>
+                &nbsp;&nbsp;&nbsp;&nbsp;self.drivers = {}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="modal-footer">
+          <span class="footer-text">Calm • Natural • Easy on Eyes</span>
+          <button class="close-btn">Close</button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- THEME 3: TWILIGHT -->
+    <div class="theme-card twilight">
+      <div class="theme-label">🌙 Option 3: Twilight</div>
+      <div class="modal-demo">
+        <div class="modal-header">
+          <div class="modal-title">💎 Delivery Cost Tracking System</div>
+          <div class="badges">
+            <span class="badge badge-difficulty">MEDIUM</span>
+            <span class="badge badge-category">LLD/OOP Design</span>
+          </div>
+        </div>
+        
+        <div class="tabs">
+          <div class="tab active">
+            <span class="tab-icon">🎯</span>
+            UNDERSTAND
+          </div>
+          <div class="tab">
+            <span class="tab-icon">🧠</span>
+            APPROACH
+          </div>
+          <div class="tab">
+            <span class="tab-icon">💻</span>
+            SOLUTION
+          </div>
+        </div>
+        
+        <div class="content">
+          <div class="interview-tip">
+            <div class="tip-title">💡 What to say first</div>
+            <div class="tip-content">"Thank you for this problem. Before I start coding, I'd like to understand the requirements..."</div>
+          </div>
+          
+          <div class="section">
+            <div class="section-header">🎯 First Impressions</div>
+            <div class="section-content">
+              This is a classic <strong>system design / OOP problem</strong>. The core challenge is about architectural decisions.
+              <div class="code-block">
+                <span class="code-keyword">class</span> DeliveryCostTracker:<br>
+                &nbsp;&nbsp;<span class="code-keyword">def</span> __init__(self):<br>
+                &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-comment"># HashMap for O(1) lookup</span><br>
+                &nbsp;&nbsp;&nbsp;&nbsp;self.drivers = {}
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="modal-footer">
+          <span class="footer-text">Creative • Modern • Unique</span>
+          <button class="close-btn">Close</button>
+        </div>
+      </div>
+    </div>
+    
+  </div>
+  
+  <div style="text-align: center; margin-top: 40px; color: #666; font-size: 14px;">
+    <p>Open this file in browser: <code style="background: #222; padding: 4px 8px; border-radius: 4px; color: #fff;">http://localhost:3000/theme-demo.html</code></p>
+    <p style="margin-top: 8px;">Tell me which one you like: <strong style="color: #D4A853;">1 (Gold)</strong>, <strong style="color: #4ADE80;">2 (Green)</strong>, or <strong style="color: #A78BFA;">3 (Purple)</strong></p>
+  </div>
+</body>
+</html>

@@ -1,0 +1,103 @@
+{
+  "generated_at": "2026-01-18T15:47:52.777Z",
+  "total_with_solutions": 13,
+  "solutions": {
+    "cache_system_with_transactions": {
+      "main": true,
+      "parts": [
+        2,
+        3
+      ]
+    },
+    "delivery_cost_tracking": {
+      "main": true,
+      "parts": [
+        2,
+        3,
+        4
+      ]
+    },
+    "employee_access_management": {
+      "main": true,
+      "parts": [
+        2,
+        3,
+        4
+      ]
+    },
+    "employee_hierarchy_org_tree": {
+      "main": true,
+      "parts": [
+        2,
+        3
+      ]
+    },
+    "expense_rules_engine": {
+      "main": true,
+      "parts": [
+        2,
+        3
+      ]
+    },
+    "lca_nary_tree": {
+      "main": true,
+      "parts": [
+        2,
+        3,
+        4
+      ]
+    },
+    "median_two_sorted_arrays": {
+      "main": true,
+      "parts": [
+        2,
+        3,
+        4
+      ]
+    },
+    "news_feed_aggregator": {
+      "main": true,
+      "parts": [
+        2,
+        3
+      ]
+    },
+    "process_scheduling": {
+      "main": true,
+      "parts": [
+        2,
+        3
+      ]
+    },
+    "song_play_analytics": {
+      "main": true,
+      "parts": [
+        2,
+        3
+      ]
+    },
+    "stackoverflow_api": {
+      "main": true,
+      "parts": [
+        2,
+        3,
+        4
+      ]
+    },
+    "task_scheduling_dependencies": {
+      "main": true,
+      "parts": [
+        2,
+        3,
+        4
+      ]
+    },
+    "travel_expense_calculation": {
+      "main": true,
+      "parts": [
+        2,
+        3
+      ]
+    }
+  }
+}

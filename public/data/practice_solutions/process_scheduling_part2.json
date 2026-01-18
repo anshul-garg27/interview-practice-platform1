@@ -1,0 +1,845 @@
+{
+  "problem_title": "Process Scheduling on Processors - Part 2: Variable Execution Times",
+  "part_number": 2,
+  "builds_on": "Part 1",
+  "difficulty": "hard",
+  "problem_understanding": {
+    "what_changes": "In Part 1, all processes took exactly 1 second. Now each process has its own execution time (`execTime[i]`). The time formula changes from `count + (count-1) pauses` to `sum(execTimes) + (count-1) pauses`. This fundamentally changes the feasibility check because we can no longer simply count processes\u2014we must track cumulative execution times.",
+    "new_requirements": [
+      "Handle variable execution times per process",
+      "Time calculation: sum(exec_times) + (num_processes - 1) for pause overhead",
+      "Same capacity constraint: processor capacity >= process size",
+      "Must handle up to 10^5 processes efficiently"
+    ],
+    "new_constraints": [
+      "execTime array of same length as processSize",
+      "Must consider both capacity AND time when assigning processes",
+      "Greedy packing becomes a multi-constraint bin packing variant"
+    ],
+    "key_insight": "Binary search on the answer (time T) still works, but the feasibility check must now solve a variant of bin packing where each 'bin' (processor) has both a capacity constraint AND a time budget. For each processor within time T, we greedily pack processes prioritizing larger execution times first to avoid leaving hard-to-fit processes stranded."
+  },
+  "requirements_coverage": {
+    "checklist": [
+      {
+        "requirement": "Variable execution times per process",
+        "how_met": "execTime array parameter; time calculation sums exec times plus pauses",
+        "gotchas": [
+          "First process has no pause before it",
+          "Pause is only between consecutive processes"
+        ]
+      },
+      {
+        "requirement": "Efficient handling of 10^5 processes",
+        "how_met": "Binary search O(log T_max) iterations \u00d7 O(n\u00d7m) feasibility = O(n\u00d7m\u00d7log(n\u00d7maxT))",
+        "gotchas": [
+          "Naive O(n!) assignment is impossible",
+          "Must use greedy not optimal assignment"
+        ]
+      },
+      {
+        "requirement": "Return -1 if impossible",
+        "how_met": "Pre-check: if any process size > max capacity, return -1",
+        "gotchas": [
+          "Only capacity makes assignment impossible, not time (time can always be increased)"
+        ]
+      }
+    ],
+    "complexity_targets": [
+      {
+        "operation": "minTimeVariable",
+        "target": "O(n log(T_max) \u00d7 (n + m))",
+        "achieved": "O(log(T_max) \u00d7 n \u00d7 m) where T_max = O(n \u00d7 max_exec_time)",
+        "why": "Binary search on time, each iteration does O(n\u00d7m) feasibility check"
+      }
+    ],
+    "non_goals": [
+      "Optimal assignment (NP-hard bin packing variant) - greedy heuristic is sufficient",
+      "Dynamic process arrival - batch processing only",
+      "Processor failures or variable pause times"
+    ]
+  },
+  "assumptions": [
+    "execTime values are positive integers",
+    "processSize and execTime arrays have the same length",
+    "All processes must be executed (no partial execution)",
+    "A process runs to completion once started (no preemption)"
+  ],
+  "tradeoffs": [
+    {
+      "decision": "Greedy assignment vs Optimal assignment",
+      "chosen": "Greedy (largest exec time first)",
+      "why": "Optimal bin packing is NP-hard; greedy gives good approximation in O(n\u00d7m)",
+      "alternative": "Branch and bound or ILP solver",
+      "when_to_switch": "If proof of optimality required, or for very small inputs"
+    },
+    {
+      "decision": "Sort order for packing",
+      "chosen": "Largest exec time first within capacity constraints",
+      "why": "Prioritizes hard-to-fit processes, prevents leaving large-time processes stranded",
+      "alternative": "Smallest exec time first (maximizes count but may fail on large-time processes)",
+      "when_to_switch": "If goal changes to maximize process count rather than complete all"
+    }
+  ],
+  "extensibility_notes": {
+    "what_to_keep_stable": [
+      "Binary search framework on answer",
+      "Capacity constraint checking",
+      "Processor/process sorting order"
+    ],
+    "what_to_change": [
+      "Added execTime parameter to function signature",
+      "Modified feasibility check to track cumulative time",
+      "Process representation now includes exec_time"
+    ],
+    "interfaces_and_boundaries": "The feasibility function is isolated and can be modified for Part 3 (e.g., adding priority, preemption) without changing binary search structure",
+    "invariants": [
+      "Processes sorted by size descending ensures large processes assigned first",
+      "Processors sorted by capacity descending ensures high-capacity processors fill first",
+      "Time formula: sum(exec_times) + (count-1) pauses"
+    ]
+  },
+  "visual_explanation": {
+    "before_after": "```\nPart 1 (Fixed 1s):                 Part 2 (Variable times):\n  Time: [P][p][P][p][P]              Time: [P===][p][P=][p][P=====]\n        1  1  1  1  1                       3    1  2   1   5\n        Total: 5 seconds                    Total: 3+1+2+1+5 = 12s\n\nKey Difference: Can't just count processes anymore!\n```",
+    "algorithm_flow": "```\n1. SORT: Processors by capacity \u2193, Processes by size \u2193\n   Caps: [10, 8, 5]    Procs: [(8,5), (6,3), (4,2), (3,1)]\n                               size,time\n\n2. BINARY SEARCH on time T:\n   lo=5 (max exec time), hi=5+3+2+1+3=14 (all on one)\n\n3. FEASIBILITY CHECK for T=7:\n   \u250c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2510\n   \u2502 Processor cap=10:                       \u2502\n   \u2502   Eligible: all processes               \u2502\n   \u2502   Sort by exec\u2193: [(8,5),(6,3),(4,2),(3,1)]\u2502\n   \u2502   Pack: (8,5)\u21925, (6,3)\u21925+1+3=9>7 SKIP  \u2502\n   \u2502         (4,2)\u21925+1+2=8>7 SKIP           \u2502\n   \u2502         (3,1)\u21925+1+1=7 \u2713                \u2502\n   \u2502   Assigned: (8,5), (3,1)  Time=7       \u2502\n   \u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n   \u2502 Processor cap=8:                        \u2502\n   \u2502   Eligible: (6,3), (4,2)               \u2502\n   \u2502   Pack: (6,3)\u21923, (4,2)\u21923+1+2=6 \u2713       \u2502\n   \u2502   Assigned: (6,3), (4,2)  Time=6       \u2502\n   \u251c\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2524\n   \u2502 Processor cap=5: (nothing left)         \u2502\n   \u2514\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2518\n   All assigned! T=7 is FEASIBLE\n\n4. Continue binary search: try T=6, T=5...\n```"
+  },
+  "approaches": [
+    {
+      "name": "Naive Extension (Smallest Exec First)",
+      "description": "Sort processes by execution time ascending and greedily pack to maximize process count per processor",
+      "time_complexity": "O(log(T_max) \u00d7 n \u00d7 m)",
+      "space_complexity": "O(n + m)",
+      "why_not_optimal": "Fails when large-exec-time processes get left behind. Example: procs=[(10,10),(1,1)], cap=[10], T=10. Packing (1,1) first leaves (10,10) unassignable even though it fits alone."
+    },
+    {
+      "name": "Optimal Approach (Largest Exec First)",
+      "description": "Binary search on time T. For feasibility: sort processors by capacity descending, for each processor greedily pack eligible processes with largest exec times first. This prioritizes hard-to-fit processes.",
+      "time_complexity": "O(log(T_max) \u00d7 n \u00d7 m) where T_max = sum(execTimes) + n",
+      "space_complexity": "O(n + m)",
+      "key_insight": "Packing largest exec times first ensures hard-to-fit processes don't get stranded. This is analogous to First Fit Decreasing in bin packing."
+    }
+  ],
+  "optimal_solution": {
+    "explanation_md": "## Solution Strategy\n\n**Binary Search on Answer**: We binary search on the total time `T`. For each candidate `T`, we check if all processes can be completed within time `T`.\n\n**Feasibility Check**: For a given time `T`, we use a **greedy assignment**:\n1. Sort processors by capacity **descending** (large capacity handles more process types)\n2. Sort processes by size **descending** (prioritize large processes that have fewer options)\n3. For each processor, greedily pack processes:\n   - Filter to processes that fit the capacity constraint\n   - **Sort by exec time descending** (pack hardest-to-fit first!)\n   - Greedily add processes while `current_time + exec_time + pause \u2264 T`\n\n**Why Largest Exec First?**\nIf we pack smallest exec times first, we might fill processors with easy processes and leave large-exec-time processes stranded with no room. By packing largest first, we ensure these critical processes get assigned.\n\n**Time Formula Reminder**: If processor runs `k` processes with times `[t1, t2, ..., tk]`:\n```\ntotal_time = t1 + 1 + t2 + 1 + ... + tk = sum(ti) + (k-1)\n```",
+    "data_structures": [
+      {
+        "structure": "Sorted Arrays",
+        "purpose": "Sort processors and processes for greedy assignment order"
+      },
+      {
+        "structure": "Boolean Assignment Tracker",
+        "purpose": "Track which processes have been assigned during feasibility check"
+      }
+    ],
+    "algorithm_steps": [
+      "Step 1: Handle edge cases (empty processes, impossible capacity constraints)",
+      "Step 2: Create process tuples (size, exec_time) and sort by size descending",
+      "Step 3: Sort processor capacities descending",
+      "Step 4: Set binary search bounds: lo = max(exec_time), hi = sum(exec_times) + n - 1",
+      "Step 5: Binary search: for each mid, check feasibility",
+      "Step 6: Feasibility: for each processor, greedily pack (largest exec first) while respecting capacity and time T",
+      "Step 7: Return minimum feasible T"
+    ]
+  },
+  "solution_python_lines": [
+    "from typing import List",
+    "",
+    "",
+    "class ProcessScheduler:",
+    "    \"\"\"",
+    "    Process Scheduling System with Variable Execution Times.",
+    "    ",
+    "    Solves the minimum time scheduling problem where:",
+    "    - Each processor has a capacity constraint",
+    "    - Each process has a size and variable execution time",
+    "    - Pause time of 1 second between consecutive processes on same processor",
+    "    \"\"\"",
+    "    ",
+    "    def min_time_variable(self, process_size: List[int], exec_time: List[int], ",
+    "                          capacity: List[int]) -> int:",
+    "        \"\"\"",
+    "        Find minimum time to execute all processes with variable execution times.",
+    "        ",
+    "        Args:",
+    "            process_size: Array of process sizes",
+    "            exec_time: Array of execution times for each process",
+    "            capacity: Array of processor capacities",
+    "            ",
+    "        Returns:",
+    "            Minimum time to execute all processes, or -1 if impossible",
+    "            ",
+    "        Time Complexity: O(log(T_max) \u00d7 n \u00d7 m) where T_max = sum(exec_times) + n",
+    "        Space Complexity: O(n + m)",
+    "        \"\"\"",
+    "        n = len(process_size)",
+    "        m = len(capacity)",
+    "        ",
+    "        # Edge case: no processes",
+    "        if n == 0:",
+    "            return 0",
+    "        ",
+    "        # Edge case: no processors",
+    "        if m == 0:",
+    "            return -1",
+    "        ",
+    "        # Check if all processes can potentially be assigned (capacity check)",
+    "        max_capacity = max(capacity)",
+    "        for size in process_size:",
+    "            if size > max_capacity:",
+    "                return -1  # At least one process can't fit any processor",
+    "        ",
+    "        # Combine process info: (size, exec_time), sorted by size descending",
+    "        # Prioritize large processes (fewer assignment options)",
+    "        processes = sorted(",
+    "            zip(process_size, exec_time),",
+    "            key=lambda x: (-x[0], -x[1])  # size desc, then exec_time desc",
+    "        )",
+    "        ",
+    "        # Sort capacities descending (large capacity processors first)",
+    "        sorted_caps = sorted(capacity, reverse=True)",
+    "        ",
+    "        # Binary search bounds",
+    "        lo = max(exec_time)  # At minimum, need time for longest process",
+    "        hi = sum(exec_time) + (n - 1)  # Worst case: all on one processor",
+    "        ",
+    "        def can_finish_in_time(time_limit: int) -> bool:",
+    "            \"\"\"",
+    "            Check if all processes can be completed within time_limit.",
+    "            ",
+    "            Greedy strategy:",
+    "            1. Process processors in decreasing capacity order",
+    "            2. For each processor, pack processes with largest exec times first",
+    "            3. This ensures hard-to-fit processes don't get stranded",
+    "            \"\"\"",
+    "            assigned = [False] * n",
+    "            ",
+    "            for cap in sorted_caps:",
+    "                # Find unassigned processes that fit this processor's capacity",
+    "                eligible = []",
+    "                for i in range(n):",
+    "                    if not assigned[i] and processes[i][0] <= cap:",
+    "                        eligible.append((i, processes[i][1]))  # (index, exec_time)",
+    "                ",
+    "                # Sort by exec_time DESCENDING (pack largest first!)",
+    "                # This prevents leaving large-exec-time processes stranded",
+    "                eligible.sort(key=lambda x: -x[1])",
+    "                ",
+    "                # Greedily pack processes within time_limit",
+    "                current_time = 0",
+    "                for idx, exec_t in eligible:",
+    "                    # Calculate time needed: exec_time + pause (if not first)",
+    "                    pause = 1 if current_time > 0 else 0",
+    "                    time_needed = exec_t + pause",
+    "                    ",
+    "                    if current_time + time_needed <= time_limit:",
+    "                        current_time += time_needed",
+    "                        assigned[idx] = True",
+    "            ",
+    "            return all(assigned)",
+    "        ",
+    "        # Binary search for minimum time",
+    "        while lo < hi:",
+    "            mid = (lo + hi) // 2",
+    "            if can_finish_in_time(mid):",
+    "                hi = mid  # Try smaller time",
+    "            else:",
+    "                lo = mid + 1  # Need more time",
+    "        ",
+    "        return lo",
+    "",
+    "",
+    "def main():",
+    "    \"\"\"Demo and test the ProcessScheduler with variable execution times.\"\"\"",
+    "    scheduler = ProcessScheduler()",
+    "    ",
+    "    print(\"=\" * 70)",
+    "    print(\"Process Scheduling - Part 2: Variable Execution Times\")",
+    "    print(\"=\" * 70)",
+    "    ",
+    "    # Test Case 1: From problem description",
+    "    print(\"\\n--- Test Case 1 ---\")",
+    "    process_size = [2, 5, 3]",
+    "    exec_time = [1, 3, 2]",
+    "    capacity = [6, 6]",
+    "    result = scheduler.min_time_variable(process_size, exec_time, capacity)",
+    "    print(f\"Process sizes: {process_size}\")",
+    "    print(f\"Exec times:    {exec_time}\")",
+    "    print(f\"Capacities:    {capacity}\")",
+    "    print(f\"Result: {result} (Expected: 4)\")",
+    "    print(\"Explanation: P1 gets [proc5(3s)]=3s, P2 gets [proc3(2s)+pause+proc2(1s)]=4s\")",
+    "    assert result == 4, f\"Expected 4, got {result}\"",
+    "    ",
+    "    # Test Case 2: From problem description",
+    "    print(\"\\n--- Test Case 2 ---\")",
+    "    process_size = [4, 4, 4]",
+    "    exec_time = [5, 3, 2]",
+    "    capacity = [5, 5]",
+    "    result = scheduler.min_time_variable(process_size, exec_time, capacity)",
+    "    print(f\"Process sizes: {process_size}\")",
+    "    print(f\"Exec times:    {exec_time}\")",
+    "    print(f\"Capacities:    {capacity}\")",
+    "    print(f\"Result: {result} (Expected: 6)\")",
+    "    print(\"Explanation: P1 gets [5s]=5s, P2 gets [3s+pause+2s]=6s, max=6\")",
+    "    assert result == 6, f\"Expected 6, got {result}\"",
+    "    ",
+    "    # Test Case 3: Single large process",
+    "    print(\"\\n--- Test Case 3: Single Process ---\")",
+    "    process_size = [10]",
+    "    exec_time = [7]",
+    "    capacity = [10]",
+    "    result = scheduler.min_time_variable(process_size, exec_time, capacity)",
+    "    print(f\"Process sizes: {process_size}\")",
+    "    print(f\"Exec times:    {exec_time}\")",
+    "    print(f\"Capacities:    {capacity}\")",
+    "    print(f\"Result: {result} (Expected: 7)\")",
+    "    assert result == 7, f\"Expected 7, got {result}\"",
+    "    ",
+    "    # Test Case 4: Impossible (capacity constraint)",
+    "    print(\"\\n--- Test Case 4: Impossible ---\")",
+    "    process_size = [100, 5, 3]",
+    "    exec_time = [1, 2, 3]",
+    "    capacity = [50, 50]",
+    "    result = scheduler.min_time_variable(process_size, exec_time, capacity)",
+    "    print(f\"Process sizes: {process_size}\")",
+    "    print(f\"Exec times:    {exec_time}\")",
+    "    print(f\"Capacities:    {capacity}\")",
+    "    print(f\"Result: {result} (Expected: -1)\")",
+    "    print(\"Explanation: Process with size 100 can't fit any processor\")",
+    "    assert result == -1, f\"Expected -1, got {result}\"",
+    "    ",
+    "    # Test Case 5: All on one processor",
+    "    print(\"\\n--- Test Case 5: Single Processor ---\")",
+    "    process_size = [1, 1, 1]",
+    "    exec_time = [2, 3, 4]",
+    "    capacity = [5]",
+    "    result = scheduler.min_time_variable(process_size, exec_time, capacity)",
+    "    print(f\"Process sizes: {process_size}\")",
+    "    print(f\"Exec times:    {exec_time}\")",
+    "    print(f\"Capacities:    {capacity}\")",
+    "    print(f\"Result: {result} (Expected: 11)\")",
+    "    print(\"Explanation: All on one: 2+1+3+1+4 = 11s\")",
+    "    assert result == 11, f\"Expected 11, got {result}\"",
+    "    ",
+    "    # Test Case 6: Greedy ordering matters",
+    "    print(\"\\n--- Test Case 6: Greedy Ordering Matters ---\")",
+    "    process_size = [5, 5]",
+    "    exec_time = [10, 1]",
+    "    capacity = [5]",
+    "    result = scheduler.min_time_variable(process_size, exec_time, capacity)",
+    "    print(f\"Process sizes: {process_size}\")",
+    "    print(f\"Exec times:    {exec_time}\")",
+    "    print(f\"Capacities:    {capacity}\")",
+    "    print(f\"Result: {result} (Expected: 12)\")",
+    "    print(\"Explanation: Both on one processor: 10+1+1 = 12s\")",
+    "    assert result == 12, f\"Expected 12, got {result}\"",
+    "    ",
+    "    # Test Case 7: Empty processes",
+    "    print(\"\\n--- Test Case 7: Edge Case - Empty ---\")",
+    "    result = scheduler.min_time_variable([], [], [5, 5])",
+    "    print(f\"Result: {result} (Expected: 0)\")",
+    "    assert result == 0, f\"Expected 0, got {result}\"",
+    "    ",
+    "    print(\"\\n\" + \"=\" * 70)",
+    "    print(\"All tests passed!\")",
+    "    print(\"=\" * 70)",
+    "",
+    "",
+    "if __name__ == \"__main__\":",
+    "    main()"
+  ],
+  "solution_java_lines": [
+    "import java.util.*;",
+    "",
+    "/**",
+    " * Process Scheduling System with Variable Execution Times.",
+    " * ",
+    " * Solves the minimum time scheduling problem where:",
+    " * - Each processor has a capacity constraint",
+    " * - Each process has a size and variable execution time",
+    " * - Pause time of 1 second between consecutive processes on same processor",
+    " */",
+    "public class ProcessScheduler {",
+    "    ",
+    "    /**",
+    "     * Find minimum time to execute all processes with variable execution times.",
+    "     * ",
+    "     * @param processSize Array of process sizes",
+    "     * @param execTime Array of execution times for each process",
+    "     * @param capacity Array of processor capacities",
+    "     * @return Minimum time to execute all processes, or -1 if impossible",
+    "     * ",
+    "     * Time Complexity: O(log(T_max) \u00d7 n \u00d7 m) where T_max = sum(execTimes) + n",
+    "     * Space Complexity: O(n + m)",
+    "     */",
+    "    public int minTimeVariable(int[] processSize, int[] execTime, int[] capacity) {",
+    "        int n = processSize.length;",
+    "        int m = capacity.length;",
+    "        ",
+    "        // Edge case: no processes",
+    "        if (n == 0) return 0;",
+    "        ",
+    "        // Edge case: no processors",
+    "        if (m == 0) return -1;",
+    "        ",
+    "        // Check if all processes can potentially be assigned (capacity check)",
+    "        int maxCapacity = Arrays.stream(capacity).max().orElse(0);",
+    "        for (int size : processSize) {",
+    "            if (size > maxCapacity) return -1;",
+    "        }",
+    "        ",
+    "        // Create process array: [size, execTime], sort by size descending",
+    "        int[][] processes = new int[n][2];",
+    "        for (int i = 0; i < n; i++) {",
+    "            processes[i][0] = processSize[i];",
+    "            processes[i][1] = execTime[i];",
+    "        }",
+    "        Arrays.sort(processes, (a, b) -> {",
+    "            if (a[0] != b[0]) return b[0] - a[0];  // size desc",
+    "            return b[1] - a[1];  // exec_time desc",
+    "        });",
+    "        ",
+    "        // Sort capacities descending",
+    "        Integer[] sortedCaps = Arrays.stream(capacity).boxed().toArray(Integer[]::new);",
+    "        Arrays.sort(sortedCaps, Collections.reverseOrder());",
+    "        ",
+    "        // Binary search bounds",
+    "        int lo = Arrays.stream(execTime).max().orElse(0);",
+    "        int hi = Arrays.stream(execTime).sum() + (n - 1);",
+    "        ",
+    "        // Binary search for minimum time",
+    "        while (lo < hi) {",
+    "            int mid = lo + (hi - lo) / 2;",
+    "            if (canFinishInTime(processes, sortedCaps, mid, n)) {",
+    "                hi = mid;",
+    "            } else {",
+    "                lo = mid + 1;",
+    "            }",
+    "        }",
+    "        ",
+    "        return lo;",
+    "    }",
+    "    ",
+    "    /**",
+    "     * Check if all processes can be completed within timeLimit.",
+    "     * Greedy: for each processor, pack largest exec times first.",
+    "     */",
+    "    private boolean canFinishInTime(int[][] processes, Integer[] sortedCaps,",
+    "                                     int timeLimit, int n) {",
+    "        boolean[] assigned = new boolean[n];",
+    "        ",
+    "        for (int cap : sortedCaps) {",
+    "            // Find eligible processes and sort by exec time descending",
+    "            List<int[]> eligible = new ArrayList<>();",
+    "            for (int i = 0; i < n; i++) {",
+    "                if (!assigned[i] && processes[i][0] <= cap) {",
+    "                    eligible.add(new int[]{i, processes[i][1]});",
+    "                }",
+    "            }",
+    "            ",
+    "            // Sort by exec_time DESCENDING",
+    "            eligible.sort((a, b) -> b[1] - a[1]);",
+    "            ",
+    "            // Greedy pack",
+    "            int currentTime = 0;",
+    "            for (int[] proc : eligible) {",
+    "                int idx = proc[0];",
+    "                int execT = proc[1];",
+    "                int pause = (currentTime > 0) ? 1 : 0;",
+    "                int timeNeeded = execT + pause;",
+    "                ",
+    "                if (currentTime + timeNeeded <= timeLimit) {",
+    "                    currentTime += timeNeeded;",
+    "                    assigned[idx] = true;",
+    "                }",
+    "            }",
+    "        }",
+    "        ",
+    "        for (boolean a : assigned) {",
+    "            if (!a) return false;",
+    "        }",
+    "        return true;",
+    "    }",
+    "    ",
+    "    public static void main(String[] args) {",
+    "        ProcessScheduler scheduler = new ProcessScheduler();",
+    "        ",
+    "        System.out.println(\"=\".repeat(70));",
+    "        System.out.println(\"Process Scheduling - Part 2: Variable Execution Times\");",
+    "        System.out.println(\"=\".repeat(70));",
+    "        ",
+    "        // Test Case 1",
+    "        System.out.println(\"\\n--- Test Case 1 ---\");",
+    "        int result1 = scheduler.minTimeVariable(",
+    "            new int[]{2, 5, 3}, new int[]{1, 3, 2}, new int[]{6, 6});",
+    "        System.out.println(\"Result: \" + result1 + \" (Expected: 4)\");",
+    "        assert result1 == 4;",
+    "        ",
+    "        // Test Case 2",
+    "        System.out.println(\"\\n--- Test Case 2 ---\");",
+    "        int result2 = scheduler.minTimeVariable(",
+    "            new int[]{4, 4, 4}, new int[]{5, 3, 2}, new int[]{5, 5});",
+    "        System.out.println(\"Result: \" + result2 + \" (Expected: 6)\");",
+    "        assert result2 == 6;",
+    "        ",
+    "        // Test Case 3: Impossible",
+    "        System.out.println(\"\\n--- Test Case 3: Impossible ---\");",
+    "        int result3 = scheduler.minTimeVariable(",
+    "            new int[]{100, 5, 3}, new int[]{1, 2, 3}, new int[]{50, 50});",
+    "        System.out.println(\"Result: \" + result3 + \" (Expected: -1)\");",
+    "        assert result3 == -1;",
+    "        ",
+    "        System.out.println(\"\\n\" + \"=\".repeat(70));",
+    "        System.out.println(\"All tests passed!\");",
+    "    }",
+    "}"
+  ],
+  "code_walkthrough": [
+    {
+      "lines": "1-12",
+      "explanation": "Class definition and docstring explaining the problem context: variable execution times, capacity constraints, and pause overhead."
+    },
+    {
+      "lines": "14-35",
+      "explanation": "Edge case handling and impossibility check. If any process size exceeds max capacity, return -1 immediately."
+    },
+    {
+      "lines": "37-48",
+      "explanation": "Data preparation: combine (size, exec_time) tuples, sort processes by size descending to prioritize large processes. Sort capacities descending for processors."
+    },
+    {
+      "lines": "50-56",
+      "explanation": "Binary search bounds: lower bound is max exec time (minimum time for any single process), upper bound is all processes sequentially on one processor."
+    },
+    {
+      "lines": "58-84",
+      "explanation": "The key feasibility function: for each processor (capacity descending), find eligible processes, sort by exec_time DESCENDING, and greedily pack. The descending sort prevents large-exec-time processes from being stranded."
+    },
+    {
+      "lines": "86-93",
+      "explanation": "Binary search loop: if current time is feasible, try smaller; otherwise need more time."
+    },
+    {
+      "lines": "96-150",
+      "explanation": "Comprehensive test suite demonstrating various scenarios including the given examples, edge cases (empty, impossible), and cases where greedy ordering matters."
+    }
+  ],
+  "complexity_analysis": {
+    "time": {
+      "new_methods": {
+        "minTimeVariable": {
+          "complexity": "O(log(T_max) \u00d7 n \u00d7 m)",
+          "explanation": "Binary search runs O(log(T_max)) iterations where T_max = sum(execTimes) + n \u2248 O(n \u00d7 max_exec_time). Each feasibility check iterates over m processors, and for each processor iterates over n processes for filtering and O(n log n) for sorting."
+        },
+        "canFinishInTime": {
+          "complexity": "O(n \u00d7 m + m \u00d7 n log n)",
+          "explanation": "For each of m processors: O(n) to filter eligible + O(n log n) to sort + O(n) to pack = O(n log n). Total: O(m \u00d7 n log n)."
+        }
+      },
+      "overall_change": "Similar structure to Part 1 but with more complex feasibility check due to variable exec times"
+    },
+    "space": {
+      "additional_space": "O(n + m)",
+      "explanation": "Storage for sorted processes array O(n), sorted capacities O(m), assignment tracking O(n), and eligible list O(n) per processor (reused)."
+    }
+  },
+  "dry_run": {
+    "example_input": "processSize=[2,5,3], execTime=[1,3,2], capacity=[6,6]",
+    "steps": [
+      {
+        "step": 1,
+        "action": "Sort processes by size descending",
+        "state": "processes = [(5,3), (3,2), (2,1)]",
+        "explanation": "Process with size 5 and exec time 3 comes first"
+      },
+      {
+        "step": 2,
+        "action": "Set binary search bounds",
+        "state": "lo=3 (max exec), hi=8 (1+3+2+2 pauses)",
+        "explanation": "Minimum possible is 3s, maximum is all sequential"
+      },
+      {
+        "step": 3,
+        "action": "Binary search mid=5, check feasibility",
+        "state": "T=5",
+        "explanation": "Check if all processes fit within 5 seconds"
+      },
+      {
+        "step": 4,
+        "action": "Processor 1 (cap=6) packing",
+        "state": "Eligible sorted by exec\u2193: [(5,3),(3,2),(2,1)]. Pack: (5,3)\u21923, (3,2)\u21923+1+2=6>5 skip, (2,1)\u21923+1+1=5\u22645\u2713",
+        "explanation": "Assigned: indices 0,2. Time=5."
+      },
+      {
+        "step": 5,
+        "action": "Processor 2 (cap=6) packing",
+        "state": "Remaining: [(3,2)]. Pack: (3,2)\u21922\u22645\u2713",
+        "explanation": "All assigned! T=5 is feasible."
+      },
+      {
+        "step": 6,
+        "action": "Binary search continues: try T=4",
+        "state": "lo=3, hi=5, mid=4",
+        "explanation": "Can we do better?"
+      },
+      {
+        "step": 7,
+        "action": "T=4 feasibility check",
+        "state": "P1: (5,3)\u21923, skip rest. P2: (3,2)\u21922, (2,1)\u21922+1+1=4\u2713",
+        "explanation": "All assigned in time 4!"
+      },
+      {
+        "step": 8,
+        "action": "T=3 feasibility check",
+        "state": "P1: (5,3)\u21923. P2: (3,2)\u21922, (2,1)\u21924>3 skip. Remaining: (2,1)",
+        "explanation": "Not all assigned, T=3 fails"
+      }
+    ],
+    "final_output": "4"
+  },
+  "debugging_playbook": {
+    "fast_sanity_checks": [
+      "Single process: result should equal its exec_time",
+      "All processes with exec_time=1: should match Part 1 formula",
+      "Impossible case (size > all capacities): should return -1"
+    ],
+    "likely_bugs": [
+      "Forgetting pause is only between processes (first process has no pause)",
+      "Sorting processes/capacities in wrong order",
+      "Wrong greedy order: smallest exec first leaves large ones stranded",
+      "Off-by-one in pause calculation: n processes need (n-1) pauses"
+    ],
+    "recommended_logs_or_asserts": [
+      "log(f'Checking T={mid}')",
+      "log(f'Processor {cap}: assigned {len(packed)} processes, time={current_time}')",
+      "assert all(assigned) or print(f'Unassigned: {[i for i,a in enumerate(assigned) if not a]}')"
+    ],
+    "how_to_localize": "Print the assignment for failing case. Check: (1) Are large processes getting assigned first? (2) Is pause counted correctly? (3) Is capacity constraint checked?"
+  },
+  "edge_cases": [
+    {
+      "case": "Empty process list",
+      "handling": "Return 0 immediately",
+      "gotcha": "Don't try to compute max of empty array"
+    },
+    {
+      "case": "Single process",
+      "handling": "Return its exec_time (no pause needed)",
+      "gotcha": "Don't add pause for single process"
+    },
+    {
+      "case": "Process size exceeds all capacities",
+      "handling": "Return -1 (impossible)",
+      "gotcha": "Check this before binary search, not inside feasibility"
+    },
+    {
+      "case": "All processes same size, different exec times",
+      "handling": "Greedy by exec time still applies",
+      "gotcha": "Sorting by size doesn't differentiate, need secondary sort"
+    },
+    {
+      "case": "One processor, many processes",
+      "handling": "All must fit on one: sum(exec_times) + (n-1)",
+      "gotcha": "This is the upper bound for binary search"
+    }
+  ],
+  "test_cases": [
+    {
+      "name": "Example 1 from problem",
+      "input": "processSize=[2,5,3], execTime=[1,3,2], capacity=[6,6]",
+      "expected": "4",
+      "explanation": "P1=[5,3s], P2=[3,2s]+pause+[2,1s]=4s"
+    },
+    {
+      "name": "Example 2 from problem",
+      "input": "processSize=[4,4,4], execTime=[5,3,2], capacity=[5,5]",
+      "expected": "6",
+      "explanation": "P1=[5s], P2=[3s+1+2s]=6s"
+    },
+    {
+      "name": "Greedy order critical",
+      "input": "processSize=[5,5], execTime=[10,1], capacity=[5]",
+      "expected": "12",
+      "explanation": "Must fit both: 10+1+1=12. Wrong greedy would try 1 first."
+    },
+    {
+      "name": "Impossible by capacity",
+      "input": "processSize=[100], execTime=[1], capacity=[50]",
+      "expected": "-1",
+      "explanation": "Size 100 > max capacity 50"
+    }
+  ],
+  "common_mistakes": [
+    {
+      "mistake": "Packing smallest exec times first",
+      "why_wrong": "Leaves large-exec-time processes stranded when time limit is tight",
+      "correct_approach": "Pack largest exec times first to ensure hard processes get assigned",
+      "code_example_wrong": "# WRONG: eligible.sort(key=lambda x: x[1])  # ascending",
+      "code_example_correct": "# CORRECT: eligible.sort(key=lambda x: -x[1])  # descending"
+    },
+    {
+      "mistake": "Adding pause before first process",
+      "why_wrong": "First process on a processor has no pause; pause is between consecutive processes",
+      "correct_approach": "Only add pause when current_time > 0",
+      "code_example_wrong": "# WRONG: time_needed = exec_t + 1",
+      "code_example_correct": "# CORRECT: pause = 1 if current_time > 0 else 0\\n# time_needed = exec_t + pause"
+    },
+    {
+      "mistake": "Not sorting processors by capacity",
+      "why_wrong": "Smaller processors might 'steal' small processes, leaving large processes unassignable",
+      "correct_approach": "Sort capacities descending to give largest capacity first choice",
+      "code_example_wrong": "# WRONG: for cap in capacity:",
+      "code_example_correct": "# CORRECT: for cap in sorted(capacity, reverse=True):"
+    }
+  ],
+  "interview_tips": {
+    "how_to_present": "Start by explaining how Part 2 differs from Part 1 (variable exec times), then describe the modified feasibility check. Emphasize the greedy ordering insight.",
+    "what_to_mention": [
+      "Time formula changes from count-based to sum-based",
+      "Why largest-exec-first greedy works (prevents stranding)",
+      "This is a variant of bin packing which is NP-hard, so greedy is appropriate"
+    ],
+    "time_allocation": "2 min understand changes, 3 min explain approach, 8 min implement, 2 min test",
+    "if_stuck": [
+      "Think: what's different about the time calculation?",
+      "Ask: should I optimize for count or ensure all processes fit?",
+      "Hint: bin packing uses 'largest first' heuristic"
+    ]
+  },
+  "connection_to_next_part": "Part 3 might introduce process priorities, preemption, or dynamic arrival times. The binary search + feasibility framework is extensible\u2014only the feasibility function needs modification.",
+  "communication_script": {
+    "transition_from_previous": "For Part 2, the key change is variable execution times. Instead of just counting processes, I need to track cumulative time including exec_time + pauses.",
+    "explaining_changes": "The binary search structure stays the same, but my feasibility check must now sum execution times and pauses. The critical insight is sorting by largest exec time first when packing.",
+    "while_extending_code": [
+      "Adding execTime parameter to the function signature...",
+      "Modifying the process tuple to include exec_time...",
+      "Changing the packing loop to track cumulative time..."
+    ],
+    "after_completing": "This handles variable exec times in O(log(T_max) \u00d7 n \u00d7 m). The greedy ordering ensures hard-to-fit processes don't get stranded. Ready for Part 3?"
+  },
+  "time_milestones": {
+    "time_budget": "12-15 minutes for this part",
+    "by_2_min": "Understand that exec times vary, time formula changes",
+    "by_5_min": "Explain greedy modification (largest exec first), start coding",
+    "by_10_min": "Implementation complete, start testing",
+    "warning_signs": "If stuck on greedy ordering at 7 min, ask for hint about bin packing heuristics"
+  },
+  "recovery_strategies": {
+    "if_part_builds_wrong": "If Part 1 had a bug, fix it first. The binary search framework should be correct before extending.",
+    "if_new_requirement_unclear": "Ask: 'Just to confirm, the pause is still 1 second regardless of exec time, right?'",
+    "if_running_behind": "Implement basic feasibility (even with suboptimal greedy), mention the optimal ordering verbally"
+  },
+  "signal_points": {
+    "wow_factors_for_followup": [
+      "Immediately recognizing this as bin packing variant",
+      "Explaining why greedy ordering matters with counterexample",
+      "Noting that optimal assignment is NP-hard",
+      "Clean extension of Part 1 code without rewriting"
+    ]
+  },
+  "pattern_recognition": {
+    "pattern": "Binary Search on Answer + Greedy Feasibility Check",
+    "indicators": [
+      "Minimize/maximize a value subject to constraints",
+      "Can verify a candidate answer in polynomial time",
+      "Monotonic: if T works, T+1 also works"
+    ],
+    "similar_problems": [
+      "LC 875 - Koko Eating Bananas",
+      "LC 1011 - Capacity to Ship Packages Within D Days",
+      "LC 410 - Split Array Largest Sum"
+    ],
+    "template": "def solve(input):\\n    lo, hi = min_possible, max_possible\\n    while lo < hi:\\n        mid = (lo + hi) // 2\\n        if feasible(mid):\\n            hi = mid\\n        else:\\n            lo = mid + 1\\n    return lo"
+  },
+  "thinking_process": [
+    {
+      "step": 1,
+      "thought": "Variable exec times means I can't just count processes anymore",
+      "why": "Time formula changes from n + (n-1) to sum(exec_times) + (n-1)"
+    },
+    {
+      "step": 2,
+      "thought": "Binary search on answer still works",
+      "why": "Feasibility is still monotonic: if T works, T+1 works too"
+    },
+    {
+      "step": 3,
+      "thought": "Feasibility check becomes bin packing variant",
+      "why": "Each processor is a 'bin' with capacity and time constraints"
+    },
+    {
+      "step": 4,
+      "thought": "Use First Fit Decreasing heuristic",
+      "why": "Classic bin packing insight: pack largest items first to avoid leaving them stranded"
+    }
+  ],
+  "interviewer_perspective": {
+    "what_they_evaluate": [
+      "Can you adapt the solution cleanly for new constraints?",
+      "Do you understand why greedy ordering matters?",
+      "Can you identify the bin packing connection?"
+    ],
+    "bonus_points": [
+      "Mentioning NP-hardness of optimal bin packing",
+      "Providing a counterexample for wrong greedy",
+      "Discussing approximation ratio of First Fit Decreasing"
+    ],
+    "red_flags": [
+      "Rewriting entire solution instead of extending",
+      "Using wrong greedy order without considering edge cases",
+      "Not understanding the time formula change"
+    ]
+  },
+  "ai_copilot_tips": {
+    "what_to_do": [
+      "Use AI to help with sorting syntax",
+      "Let it generate test cases",
+      "Ask for edge case suggestions"
+    ],
+    "what_not_to_do": [
+      "Don't accept greedy ordering without understanding why",
+      "Don't skip the dry run\u2014verify the logic manually",
+      "Don't let AI change the core algorithm structure"
+    ]
+  },
+  "red_flags_to_avoid": {
+    "behavioral": [
+      "Not explaining the change in time formula",
+      "Jumping to code without discussing greedy strategy"
+    ],
+    "technical": [
+      "Wrong pause calculation (adding pause before first process)",
+      "Not sorting by exec time for packing"
+    ],
+    "communication": [
+      "Not mentioning this is bin packing variant",
+      "Not testing with a case where greedy ordering matters"
+    ]
+  },
+  "final_checklist": {
+    "before_saying_done": [
+      "Does feasibility correctly sum exec times + pauses?",
+      "Is greedy ordering largest-exec-first?",
+      "Did I trace through both examples?",
+      "Is impossibility check still at the start?"
+    ],
+    "quick_code_review": [
+      "Type hints on the new method",
+      "Consistent variable naming with Part 1",
+      "No hardcoded values"
+    ]
+  },
+  "production_considerations": {
+    "what_i_would_add": [
+      "Logging for assignment decisions",
+      "Metrics for processor utilization",
+      "Input validation for matching array lengths"
+    ],
+    "why_not_in_interview": "Focus on core algorithm; verbally mention these",
+    "how_to_mention": "In production, I'd add logging to track which processes go to which processor, and validate that processSize and execTime have matching lengths."
+  },
+  "generated_at": "2026-01-18T18:47:38.189092",
+  "_meta": {
+    "problem_id": "process_scheduling",
+    "part_number": 2,
+    "model": "claude-opus-4-5-20251101"
+  }
+}
