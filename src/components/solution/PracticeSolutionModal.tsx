@@ -3220,6 +3220,7 @@ function PracticeSolutionModalInner({ isOpen, onClose, solution, problemTitle }:
           exit={{ scale: 0.95, opacity: 0, y: 20 }}
           transition={{ duration: 0.2 }}
           onClick={e => e.stopPropagation()}
+          className={isMobile ? 'mobile-modal-fullscreen' : ''}
           style={{
             backgroundColor: colors.bgObsidian,
             borderRadius: isMobile ? 0 : 20,
@@ -3227,8 +3228,11 @@ function PracticeSolutionModalInner({ isOpen, onClose, solution, problemTitle }:
             boxShadow: isMobile ? 'none' : '0 25px 50px rgba(0, 0, 0, 0.15)',
             maxWidth: 1024,
             width: '100%',
-            height: isMobile ? '100vh' : 'calc(100vh - 64px)',
-            maxHeight: isMobile ? '100vh' : 'calc(100vh - 64px)',
+            // Mobile height handled by .mobile-modal-fullscreen CSS class (fixes iOS Safari 100vh bug)
+            ...(!isMobile ? {
+              height: 'calc(100vh - 64px)',
+              maxHeight: 'calc(100vh - 64px)',
+            } : {}),
             overflow: 'hidden',
             display: 'flex',
             flexDirection: 'column',

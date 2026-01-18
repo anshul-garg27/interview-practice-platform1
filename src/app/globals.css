@@ -158,6 +158,21 @@ code, pre, kbd, samp {
 }
 
 /* ============================================
+   MOBILE VIEWPORT FIX
+   Fix for iOS Safari 100vh bug where viewport
+   includes browser chrome
+   ============================================ */
+
+.mobile-modal-fullscreen {
+  height: 100vh; /* Fallback */
+  height: 100dvh; /* Dynamic viewport height */
+  height: -webkit-fill-available; /* iOS Safari fallback */
+  max-height: 100vh;
+  max-height: 100dvh;
+  max-height: -webkit-fill-available;
+}
+
+/* ============================================
    SCROLLBAR STYLES
    ============================================ */
 
